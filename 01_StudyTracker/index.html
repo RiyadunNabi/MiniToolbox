@@ -108,14 +108,7 @@
   .section-line { flex: 1; height: 1px; background: var(--border); }
   .section-count { font-family: var(--mono); font-size: 11px; color: var(--faint); background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; }
 
-  .course-row {
-    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg);
-    display: grid; grid-template-columns: 240px 1fr;
-    margin-bottom: 10px; overflow: hidden; transition: border-color 0.15s;
-  }
-  .course-row:hover { border-color: var(--border-hi); }
-  .course-row:focus-within { border-color: var(--accent-dim); }
-  @media (max-width: 650px) { .course-row { grid-template-columns: 1fr; } }
+
 
   .course-meta { padding: 1rem 1.1rem; border-right: 1px solid var(--border); display: flex; flex-direction: column; justify-content: center; gap: 5px; }
   @media (max-width: 650px) { .course-meta { border-right: none; border-bottom: 1px solid var(--border); } }
@@ -157,6 +150,30 @@
   #toast .toast-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
   #toast.toast-ok  .toast-dot { background: var(--green); }
   #toast.toast-err .toast-dot { background: var(--red); }
+
+  /* ── drag handle ── */
+  .drag-handle {
+    display: flex; align-items: center; justify-content: center;
+    width: 28px; flex-shrink: 0;
+    cursor: grab; color: var(--faint);
+    border-right: 1px solid var(--border);
+    transition: color 0.15s, background 0.15s;
+    user-select: none;
+  }
+  .drag-handle:hover { color: var(--muted); background: rgba(255,255,255,0.03); }
+  .drag-handle:active { cursor: grabbing; }
+  .drag-handle svg { width: 14px; height: 14px; pointer-events: none; }
+
+  .course-row {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    display: grid; grid-template-columns: 28px 240px 1fr;
+    margin-bottom: 10px; overflow: hidden; transition: border-color 0.15s, box-shadow 0.15s, opacity 0.15s;
+  }
+  .course-row:hover { border-color: var(--border-hi); }
+  .course-row:focus-within { border-color: var(--accent-dim); }
+  .course-row.dragging { opacity: 0.45; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim); }
+  .course-row.drag-over { border-color: var(--accent); box-shadow: 0 -3px 0 0 var(--accent); }
+  @media (max-width: 650px) { .course-row { grid-template-columns: 28px 1fr; } }
 </style>
 </head>
 <body>
@@ -260,22 +277,28 @@
 <div id="toast"><span class="toast-dot"></span><span id="toastMsg"></span></div>
 
 <script>
-const COURSES = [
-  {code:"CSE 301", name:"Mathematics for Computing and Data Science",           credits:3,   prereq:"MATH 243", type:"theory"},
-  {code:"CSE 309", name:"Compiler",                                             credits:3,   prereq:"",         type:"theory"},
-  {code:"CSE 313", name:"Operating System",                                     credits:3,   prereq:"",         type:"theory"},
-  {code:"CSE 315", name:"Microprocessors, Microcontrollers & Embedded Systems", credits:3,   prereq:"CSE 205",  type:"theory"},
-  {code:"CSE 317", name:"Artificial Intelligence",                              credits:3,   prereq:"CSE 211",  type:"theory"},
-  {code:"CSE 310", name:"Compiler Sessional",                                   credits:1.5, prereq:"",         type:"lab"},
-  {code:"CSE 314", name:"Operating System Sessional",                           credits:1.5, prereq:"",         type:"lab"},
-  {code:"CSE 316", name:"Microprocessors & Embedded Systems Sessional",         credits:1.5, prereq:"",         type:"lab"},
-  {code:"CSE 318", name:"Artificial Intelligence Sessional",                    credits:1.5, prereq:"",         type:"lab"},
-];
+const COURSE_DEFS = {
+  "CSE 301": {name:"Mathematics for Computing and Data Science",           credits:3,   prereq:"MATH 243", type:"theory"},
+  "CSE 309": {name:"Compiler",                                             credits:3,   prereq:"",         type:"theory"},
+  "CSE 313": {name:"Operating System",                                     credits:3,   prereq:"",         type:"theory"},
+  "CSE 315": {name:"Microprocessors, Microcontrollers & Embedded Systems", credits:3,   prereq:"CSE 205",  type:"theory"},
+  "CSE 317": {name:"Artificial Intelligence",                              credits:3,   prereq:"CSE 211",  type:"theory"},
+  "CSE 310": {name:"Compiler Sessional",                                   credits:1.5, prereq:"",         type:"lab"},
+  "CSE 314": {name:"Operating System Sessional",                           credits:1.5, prereq:"",         type:"lab"},
+  "CSE 316": {name:"Microprocessors & Embedded Systems Sessional",         credits:1.5, prereq:"",         type:"lab"},
+  "CSE 318": {name:"Artificial Intelligence Sessional",                    credits:1.5, prereq:"",         type:"lab"},
+};
+const DEFAULT_ORDER = {
+  theory: ["CSE 301","CSE 309","CSE 313","CSE 315","CSE 317"],
+  lab:    ["CSE 310","CSE 314","CSE 316","CSE 318"],
+};
 
 let notes = {};
-let fileSha = null; // GitHub needs the blob SHA to update a file
+let order = { theory: [...DEFAULT_ORDER.theory], lab: [...DEFAULT_ORDER.lab] };
+let fileSha = null;
 let saveTimers = {};
 let isConnected = false;
+let dragSrc = null; // { code, type }
 
 let cfg = {
   token: localStorage.getItem("buet_token") || "",
@@ -286,31 +309,39 @@ let cfg = {
 
 // ── render ──────────────────────────────────────────────────
 function buildUI() {
-  renderList("theoryList", COURSES.filter(c => c.type === "theory"));
-  renderList("labList",    COURSES.filter(c => c.type === "lab"));
+  renderList("theoryList", "theory");
+  renderList("labList",    "lab");
   updatePendingCount();
 }
 
-function renderList(id, courses) {
-  const el = document.getElementById(id);
+function renderList(containerId, type) {
+  const el = document.getElementById(containerId);
   el.innerHTML = "";
-  courses.forEach(c => {
-    const key = c.code.replace(/\s/g, "_");
-    const val = notes[c.code] || "";
+  order[type].forEach(code => {
+    const c = COURSE_DEFS[code];
+    if (!c) return;
+    const key = code.replace(/\s/g, "_");
+    const val = notes[code] || "";
     const row = document.createElement("div");
     row.className = "course-row";
+    row.setAttribute("data-code", code);
+    row.setAttribute("data-type", type);
+    row.setAttribute("draggable", "true");
     row.innerHTML = `
+      <div class="drag-handle" title="Drag to reorder">
+        <svg viewBox="0 0 14 20" fill="currentColor"><rect x="3" y="2" width="3" height="3" rx="1"/><rect x="8" y="2" width="3" height="3" rx="1"/><rect x="3" y="8" width="3" height="3" rx="1"/><rect x="8" y="8" width="3" height="3" rx="1"/><rect x="3" y="14" width="3" height="3" rx="1"/><rect x="8" y="14" width="3" height="3" rx="1"/></svg>
+      </div>
       <div class="course-meta">
-        <div class="course-code">${c.code}</div>
+        <div class="course-code">${code}</div>
         <div class="course-name">${c.name}</div>
         <div class="course-tags">
-          <span class="tag ${c.type==='theory'?'tag-theory':'tag-lab'}">${c.type==='theory'?'Theory':'Sessional'}</span>
+          <span class="tag ${type==='theory'?'tag-theory':'tag-lab'}">${type==='theory'?'Theory':'Sessional'}</span>
           <span class="tag tag-cr">${c.credits} cr</span>
           ${c.prereq ? `<span class="tag tag-pre">Pre: ${c.prereq}</span>` : ""}
         </div>
       </div>
       <div class="note-col">
-        <textarea id="ta_${key}" placeholder="Pending: topics, assignments, deadlines..." oninput="onEdit('${c.code}', this)">${escHtml(val)}</textarea>
+        <textarea id="ta_${key}" placeholder="Pending: topics, assignments, deadlines..." oninput="onEdit('${code}', this)">${escHtml(val)}</textarea>
         <div class="note-footer">
           <span class="char-count" id="cc_${key}">${val.length} chars</span>
           <span class="local-saved" id="ls_${key}">
@@ -319,6 +350,41 @@ function renderList(id, courses) {
           </span>
         </div>
       </div>`;
+
+    // drag events
+    row.addEventListener("dragstart", e => {
+      dragSrc = { code, type };
+      setTimeout(() => row.classList.add("dragging"), 0);
+      e.dataTransfer.effectAllowed = "move";
+    });
+    row.addEventListener("dragend", () => {
+      row.classList.remove("dragging");
+      document.querySelectorAll(".drag-over").forEach(r => r.classList.remove("drag-over"));
+    });
+    row.addEventListener("dragover", e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      if (dragSrc && dragSrc.type === type && dragSrc.code !== code) {
+        document.querySelectorAll(".drag-over").forEach(r => r.classList.remove("drag-over"));
+        row.classList.add("drag-over");
+      }
+    });
+    row.addEventListener("dragleave", () => row.classList.remove("drag-over"));
+    row.addEventListener("drop", e => {
+      e.preventDefault();
+      row.classList.remove("drag-over");
+      if (!dragSrc || dragSrc.type !== type || dragSrc.code === code) return;
+      // reorder
+      const arr = order[type];
+      const fromIdx = arr.indexOf(dragSrc.code);
+      const toIdx   = arr.indexOf(code);
+      if (fromIdx === -1 || toIdx === -1) return;
+      arr.splice(fromIdx, 1);
+      arr.splice(toIdx, 0, dragSrc.code);
+      saveLocal();
+      renderList(containerId, type);
+    });
+
     el.appendChild(row);
   });
 }
@@ -342,8 +408,17 @@ function updatePendingCount() {
   document.getElementById("pendingCount").textContent = Object.values(notes).filter(v => v.trim().length > 0).length;
 }
 
-function saveLocal() { localStorage.setItem("buet_notes", JSON.stringify(notes)); }
-function loadLocal() { try { notes = JSON.parse(localStorage.getItem("buet_notes") || "{}"); } catch(e) { notes = {}; } }
+function saveLocal() {
+  localStorage.setItem("buet_notes",  JSON.stringify(notes));
+  localStorage.setItem("buet_order",  JSON.stringify(order));
+}
+function loadLocal() {
+  try { notes = JSON.parse(localStorage.getItem("buet_notes") || "{}"); } catch(e) { notes = {}; }
+  try {
+    const o = JSON.parse(localStorage.getItem("buet_order") || "{}");
+    if (o.theory && o.lab) order = o;
+  } catch(e) {}
+}
 
 // ── status / toast ───────────────────────────────────────────
 function setStatus(type, msg) {
@@ -424,7 +499,9 @@ async function loadFromGitHub(isConnect = false) {
     const data = await res.json();
     fileSha = data.sha;
     const content = fromBase64(data.content.replace(/\n/g,""));
-    notes = JSON.parse(content);
+    const parsed = JSON.parse(content);
+    notes = parsed.notes || parsed; // backwards compat if old format
+    if (parsed.order && parsed.order.theory && parsed.order.lab) order = parsed.order;
     saveLocal();
     buildUI();
     markConnected();
@@ -442,7 +519,7 @@ async function createNotesFile() {
   try {
     const body = {
       message: "init: create notes.json for BUET L3T1 tracker",
-      content: toBase64(JSON.stringify(notes, null, 2)),
+      content: toBase64(JSON.stringify({ notes, order }, null, 2)),
     };
     const res = await fetch(apiUrl(), { method: "PUT", headers: headers(), body: JSON.stringify(body) });
     if (!res.ok) throw new Error("GitHub API " + res.status + " " + await res.text());
@@ -465,7 +542,7 @@ async function saveToGitHub() {
   try {
     const body = {
       message: "update: study tracker notes · " + new Date().toISOString().slice(0,16).replace("T"," "),
-      content: toBase64(JSON.stringify(notes, null, 2)),
+      content: toBase64(JSON.stringify({ notes, order }, null, 2)),
       sha: fileSha,
     };
     const res = await fetch(apiUrl(), { method: "PUT", headers: headers(), body: JSON.stringify(body) });
@@ -526,5 +603,7 @@ if (cfg.token && cfg.owner && cfg.repo && cfg.path) {
 </script>
 </body>
 </html>
+
+
 
 //ghp _isJPIINn00KZsO1g4PUoYkS0YuZr7R0ezyVH
