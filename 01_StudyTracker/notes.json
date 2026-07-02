@@ -1,10 +1,27 @@
 {
-  "CSE 301": "Lec-4",
-  "CSE 317": "pdf-2",
-  "CSE 310": "Offline , Online on Symbol Table ,on W4",
-  "CSE 314": "W3 bash",
-  "CSE 315": "Till Chapter 9\nNow at Chapter 6 (Conditional, Loop)",
-  "CSE 316": "emu806",
-  "CSE 318": "Offline, A* online 3rd week",
-  "CSE 313": "Slide1-2"
+  "notes": {
+    "CSE 301": "Lec-4",
+    "CSE 317": "pdf-2",
+    "CSE 310": "Offline , Online on Symbol Table ,on W4",
+    "CSE 314": "W3 bash",
+    "CSE 315": "Till Chapter 9\nNow at Chapter 6 (Conditional, Loop)",
+    "CSE 316": "emu806",
+    "CSE 318": "Offline, A* online 3rd week",
+    "CSE 313": "Slide1-2"
+  },
+  "order": {
+    "theory": [
+      "CSE 315",
+      "CSE 313",
+      "CSE 301",
+      "CSE 309",
+      "CSE 317"
+    ],
+    "lab": [
+      "CSE 310",
+      "CSE 318",
+      "CSE 314",
+      "CSE 316"
+    ]
+  }
 }
