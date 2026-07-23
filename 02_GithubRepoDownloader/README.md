@@ -1,9 +1,22 @@
-# How Subfolder Fetch Works — A Full Walkthrough
+# Subfolder Fetch
 
-This explains, step by step, what your tool is actually doing under the hood
+A tiny browser-based tool to download a single subfolder from a GitHub repo
+(public or private) as a ZIP — no git, no login page, no server. Just paste a
+folder URL, optionally a token, and it hands you back a `.zip` with the exact
+folder structure preserved.
+
+**Live tool:** [riyadunnabi.github.io/MiniToolbox/02_GithubRepoDownloader/](https://riyadunnabi.github.io/MiniToolbox/02_GithubRepoDownloader/)
+
+Repo: `github.com/RiyadunNabi/MiniToolbox/tree/main/02_GithubRepoDownloader`
+
+---
+
+## How it works — a full walkthrough
+
+This explains, step by step, what the tool is actually doing under the hood
 when you paste a GitHub folder URL and click "Download ZIP."
 
-## The big picture — what problem are we solving?
+### The big picture — what problem are we solving?
 
 GitHub's website lets you *browse* a folder, but it never gives you a "download
 just this folder" button. GitHub only offers:
@@ -17,11 +30,11 @@ machine-friendly interface into the same data. Think of the website as the
 "showroom" and the API as the "warehouse door around back" — same inventory,
 but built for programs instead of humans clicking around.
 
-## Step 1 — Parsing your URL
+### Step 1 — Parsing your URL
 
 You paste something like:
 ```
-github.com/RiyadunNabi/BUET_CSE/tree/main/3-1/CSE318_AI/2_MaxCut
+github.com/RiyadunNabi/MiniToolbox/tree/main/02_GithubRepoDownloader
 ```
 
 The tool splits this on `/` and picks out five pieces:
@@ -29,15 +42,15 @@ The tool splits this on `/` and picks out five pieces:
 | Piece | Value | Meaning |
 |---|---|---|
 | owner | `RiyadunNabi` | whose account the repo lives in |
-| repo | `BUET_CSE` | which repository |
+| repo | `MiniToolbox` | which repository |
 | (skip) | `tree` | GitHub's own marker meaning "this is a folder view" |
 | branch | `main` | which version/timeline of the repo |
-| path | `3-1/CSE318_AI/2_MaxCut` | everything after — the folder you actually want |
+| path | `02_GithubRepoDownloader` | everything after — the folder you actually want |
 
 This is just string-splitting — no network calls yet. It's the tool figuring
 out *what to ask for* before it asks.
 
-## Step 2 — Turning the branch into a "snapshot ID"
+### Step 2 — Turning the branch into a "snapshot ID"
 
 Here's a subtlety: a branch name like `main` isn't a fixed thing — it moves
 every time you commit. So the tool's first API call is:
@@ -55,7 +68,7 @@ write something new, while the SHA is the page number itself — fixed forever.
 We need that fixed page number for the next step, because trees (below) are
 addressed by SHA, not by branch name.
 
-## Step 3 — Getting the full file listing (the "tree")
+### Step 3 — Getting the full file listing (the "tree")
 
 Next call:
 ```
@@ -70,8 +83,8 @@ too, not just the top level.
 The response looks conceptually like:
 ```json
 [
-  { "path": "3-1/CSE318_AI/2_MaxCut/main.cpp", "type": "blob", "sha": "..." },
-  { "path": "3-1/CSE318_AI/1_something/other.py", "type": "blob", "sha": "..." },
+  { "path": "02_GithubRepoDownloader/index.html", "type": "blob", "sha": "..." },
+  { "path": "01_SomeOtherTool/script.js", "type": "blob", "sha": "..." },
   { "path": "README.md", "type": "blob", "sha": "..." }
 ]
 ```
@@ -79,15 +92,15 @@ The response looks conceptually like:
 would mean "this is a folder"). Every blob has its own SHA too — a fingerprint
 of that file's exact contents.
 
-## Step 4 — Filtering down to just your folder
+### Step 4 — Filtering down to just your folder
 
 This is the actual "subfolder" trick, and it's disappointingly simple: the
 tool has the list of *all* files, so it just throws away anything whose path
-doesn't start with `3-1/CSE318_AI/2_MaxCut/`. No special API for this exists —
+doesn't start with `02_GithubRepoDownloader/`. No special API for this exists —
 we fetch everything and filter client-side, in your browser, using ordinary
 JavaScript `.filter()`.
 
-## Step 5 — Downloading each file's actual content
+### Step 5 — Downloading each file's actual content
 
 The tree only gave us metadata (path + SHA) — not the file contents. For each
 file that survived the filter, the tool makes one more call:
@@ -102,19 +115,18 @@ anything — Base64 guarantees it survives being packed into JSON safely.
 The tool then decodes that Base64 back into raw bytes (`atob()` + a byte-array
 conversion) — reversing the encoding to get the original file back exactly.
 
-## Step 6 — Zipping it in the browser
+### Step 6 — Zipping it in the browser
 
 Normally, ZIP files are built by an operating system or a server. Here, it's
 built entirely *inside your browser tab* using a JavaScript library called
 **JSZip**. As each file is decoded, it's added to an in-memory ZIP archive
-under its original relative path (so `2_MaxCut/main.cpp` stays
-`2_MaxCut/main.cpp` in the final ZIP — this is what preserves your folder
-structure).
+under its original relative path (so `index.html` stays `index.html` in the
+final ZIP — this is what preserves your folder structure).
 
 Once every file is added, `zip.generateAsync()` compresses everything into a
 single downloadable `Blob` (browser-speak for "a chunk of binary data").
 
-## Step 7 — Triggering the actual download
+### Step 7 — Triggering the actual download
 
 The tool creates an invisible `<a>` (link) element, points its `href` at the
 ZIP blob using `URL.createObjectURL()`, sets `download="foldername.zip"`, and
@@ -122,7 +134,7 @@ clicks it programmatically. This is the standard browser trick for saving
 generated content to disk — same mechanism many "export to CSV" buttons use
 on other websites.
 
-## Where the token fits in
+### Where the token fits in
 
 Every API call above goes through `buildHeaders()`, which attaches:
 ```
@@ -137,17 +149,17 @@ but because GitHub deliberately hides the *existence* of private resources
 from unauthorized requests, rather than saying "403 Forbidden" and confirming
 something's there.
 
-## Why nothing gets saved anywhere
+### Why nothing gets saved anywhere
 
 The token only ever lives in a JavaScript variable in your browser tab's
 memory. It's never written to `localStorage`, a cookie, or sent to any server
 except `api.github.com` directly. Close the tab, and that variable — and the
 token with it — is gone. This is different from tools that save your token to
-LocalStorage for convenience (like the ones we tried earlier) — that's more
-convenient for repeat use, but means the token lingers on that machine until
-manually cleared, which matters on a shared lab PC.
+LocalStorage for convenience — that's more convenient for repeat use, but
+means the token lingers on that machine until manually cleared, which matters
+on a shared lab PC.
 
-## The full request flow, summarized
+### The full request flow, summarized
 
 ```
 Your click
@@ -166,5 +178,5 @@ Your click
    └─▶ create Blob → fake <a> click → browser saves the .zip
 ```
 
-Everything here runs client-side. There's no backend server of yours involved
-at all — it's just your browser talking straight to GitHub's API.
+Everything here runs client-side. There's no backend server involved at all —
+it's just your browser talking straight to GitHub's API.
