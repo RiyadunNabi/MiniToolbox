@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Subfolder Fetch</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root{
+    --bg:#0d1117;
+    --panel:#161b22;
+    --line:#2b3542;
+    --text:#e6edf3;
+    --dim:#8b98a5;
+    --accent:#3fb950;
+    --accent-dim:#1f6feb;
+    --error:#f85149;
+    --mono:'SF Mono','Cascadia Code','Consolas',monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--mono);
+    display:flex;
+    justify-content:center;
+    padding:48px 20px;
+  }
+  .card{
+    width:100%;
+    max-width:520px;
+  }
+  .prompt{
+    color:var(--accent);
+    font-size:13px;
+    margin-bottom:4px;
+    letter-spacing:0.5px;
+  }
+  h1{
+    font-size:20px;
+    margin:0 0 24px 0;
+    font-weight:600;
+  }
+  h1 span{color:var(--dim);font-weight:400;}
+  label{
+    display:block;
+    font-size:12px;
+    color:var(--dim);
+    margin:18px 0 6px 0;
+    text-transform:uppercase;
+    letter-spacing:0.8px;
+  }
+  input{
+    width:100%;
+    background:var(--panel);
+    border:1px solid var(--line);
+    color:var(--text);
+    padding:11px 12px;
+    border-radius:6px;
+    font-family:var(--mono);
+    font-size:14px;
+    outline:none;
+  }
+  input:focus{border-color:var(--accent-dim);}
+  input::placeholder{color:#4d5866;}
+  button{
+    margin-top:24px;
+    width:100%;
+    background:var(--accent);
+    color:#04140a;
+    border:none;
+    padding:13px;
+    border-radius:6px;
+    font-family:var(--mono);
+    font-size:14px;
+    font-weight:700;
+    cursor:pointer;
+    letter-spacing:0.3px;
+  }
+  button:disabled{
+    background:var(--line);
+    color:var(--dim);
+    cursor:not-allowed;
+  }
+  #log{
+    margin-top:20px;
+    font-size:12.5px;
+    color:var(--dim);
+    line-height:1.7;
+    white-space:pre-wrap;
+    max-height:220px;
+    overflow-y:auto;
+  }
+  .row-err{color:var(--error);}
+  .row-ok{color:var(--accent);}
+  .note{
+    margin-top:28px;
+    font-size:11.5px;
+    color:#4d5866;
+    line-height:1.6;
+    border-top:1px solid var(--line);
+    padding-top:14px;
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="prompt">$ subfolder-fetch</div>
+  <h1>Pull one folder. <span>Nothing else.</span></h1>
+
+  <label for="url">Folder URL</label>
+  <input id="url" placeholder="github.com/user/repo/tree/main/path/to/folder">
+
+  <label for="token">Token <span style="text-transform:none;color:#4d5866;">(only needed for private repos)</span></label>
+  <input id="token" type="password" placeholder="ghp_xxxxxxxxxxxx (leave blank if public)">
+
+  <button id="go">Download ZIP</button>
+  <div id="log"></div>
+
+  <div class="note">Runs entirely in this tab. If provided, the token is used only for the API requests below and is never written to disk, storage, or sent anywhere but api.github.com. Close the tab and it's gone.</div>
+</div>
+
+<script>
+const logEl = document.getElementById('log');
+const btn = document.getElementById('go');
+
+function log(msg, cls){
+  const line = document.createElement('div');
+  if(cls) line.className = cls;
+  line.textContent = msg;
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function parseUrl(raw){
+  let u = raw.trim().replace(/^https?:\/\//,'').replace(/^www\./,'');
+  const parts = u.split('/').filter(Boolean);
+  // expected: github.com owner repo tree branch ...path
+  if(parts[0] !== 'github.com' || parts.length < 5 || parts[3] !== 'tree'){
+    return null;
+  }
+  const owner = parts[1];
+  const repo = parts[2];
+  const branch = parts[4];
+  const path = parts.slice(5).join('/');
+  return { owner, repo, branch, path };
+}
+
+function buildHeaders(token){
+  const headers = { 'Accept': 'application/vnd.github+json' };
+  if(token) headers['Authorization'] = 'token ' + token;
+  return headers;
+}
+
+async function fetchTree(owner, repo, branch, token){
+  const headers = buildHeaders(token);
+  const branchRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/branches/${branch}`, { headers });
+  if(!branchRes.ok) throw new Error(`Branch lookup failed (${branchRes.status}) — check repo name, branch, and (for private repos) token scope.`);
+  const branchData = await branchRes.json();
+  const sha = branchData.commit.sha;
+
+  const treeRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/${sha}?recursive=1`, { headers });
+  if(!treeRes.ok) throw new Error(`Tree fetch failed (${treeRes.status})`);
+  const treeData = await treeRes.json();
+  return treeData.tree;
+}
+
+async function fetchBlob(owner, repo, sha, token){
+  const headers = buildHeaders(token);
+  const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/blobs/${sha}`, { headers });
+  if(!res.ok) throw new Error(`Blob fetch failed (${res.status})`);
+  const data = await res.json();
+  return data.content; // base64, possibly with newlines
+}
+
+btn.addEventListener('click', async () => {
+  logEl.innerHTML = '';
+  const rawUrl = document.getElementById('url').value;
+  const token = document.getElementById('token').value.trim();
+
+  const parsed = parseUrl(rawUrl);
+  if(!parsed){ log('URL format not recognized. Expected: github.com/owner/repo/tree/branch/path', 'row-err'); return; }
+  const { owner, repo, branch, path } = parsed;
+  if(!path){ log('This looks like a repo root, not a subfolder — paste the folder URL specifically.', 'row-err'); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Working...';
+
+  try {
+    log(`Repo: ${owner}/${repo}  Branch: ${branch}`);
+    log(`Folder: ${path}`);
+    log('Fetching file tree...');
+    const tree = await fetchTree(owner, repo, branch, token);
+
+    const prefix = path.endsWith('/') ? path : path + '/';
+    const files = tree.filter(item => item.type === 'blob' && (item.path === path || item.path.startsWith(prefix)));
+
+    if(files.length === 0){
+      log(`No files found under "${path}". Check the path is exact (case-sensitive).`, 'row-err');
+      btn.disabled = false; btn.textContent = 'Download ZIP';
+      return;
+    }
+
+    log(`Found ${files.length} file(s). Downloading contents...`);
+    const zip = new JSZip();
+
+    for(const file of files){
+      const content = await fetchBlob(owner, repo, file.sha, token);
+      const relativePath = file.path.slice(prefix.length);
+      const binary = atob(content.replace(/\n/g,''));
+      const bytes = new Uint8Array(binary.length);
+      for(let i=0;i<binary.length;i++) bytes[i] = binary.charCodeAt(i);
+      zip.file(relativePath, bytes);
+      log(`  + ${relativePath}`);
+    }
+
+    log('Zipping...');
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const zipName = path.split('/').filter(Boolean).pop() + '.zip';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = zipName;
+    a.click();
+    log(`Done — saved as ${zipName}`, 'row-ok');
+
+  } catch(err){
+    log('Error: ' + err.message, 'row-err');
+    if(err.message.includes('401') || err.message.includes('404')){
+      log('401/404 usually means: token missing "repo" scope, token expired, or owner/repo name typo.', 'row-err');
+    }
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Download ZIP';
+});
+</script>
+</body>
+</html>
