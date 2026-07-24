@@ -112,7 +112,7 @@
   <div class="panel" id="listPanel" style="display:none;">
     <div class="toolbar">
       <strong>Selected files <span class="badge" id="countBadge">0</span></strong>
-      <span class="stat">Drag to reorder — order here = merge order</span>
+      <span class="stat">Newest added = top by default. Drag to reorder.</span>
     </div>
     <div class="row" style="margin-bottom:10px;">
       <button class="secondary small" id="reverseBtn">🔁 Reverse order</button>
@@ -203,13 +203,14 @@ async function walkEntries(entries) {
   }
 }
 
-// Files are always appended to the END of the queue (FIFO) —
-// the first file you add/select stays on top, newest goes to the bottom.
+// Files are added to the TOP of the queue by default (newest first).
+// Use the Reverse order button anytime to flip to oldest-first if needed.
 function addFiles(list) {
-  list.forEach(f => {
+  const wrapped = list.map(f => {
     const rel = f.webkitRelativePath || f._relPath || f.name;
-    files.push({ id: idCounter++, file: f, relPath: rel });
+    return { id: idCounter++, file: f, relPath: rel };
   });
+  files = [...wrapped.reverse(), ...files];
   renderList();
 }
 
