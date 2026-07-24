@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>File Merger</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --border:#2a2f3a; --text:#e8eaed;
+    --muted:#9aa3b2; --accent:#5b8cff; --accent2:#3fd0a2; --danger:#ff6b6b;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg); color:var(--text); padding:24px;
+  }
+  .wrap{max-width:820px; margin:0 auto;}
+  h1{font-size:20px; margin:0 0 4px;}
+  p.sub{color:var(--muted); font-size:13px; margin:0 0 20px;}
+  .panel{
+    background:var(--panel); border:1px solid var(--border); border-radius:10px;
+    padding:18px; margin-bottom:16px;
+  }
+  .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+  button{
+    background:var(--accent); color:#fff; border:none; border-radius:7px;
+    padding:9px 16px; font-size:14px; cursor:pointer; font-weight:600;
+  }
+  button.secondary{background:#2a2f3a; color:var(--text);}
+  button.small{padding:5px 10px; font-size:12px; font-weight:500;}
+  button:disabled{opacity:.4; cursor:not-allowed;}
+  input[type=file]{display:none;}
+  .drop{
+    border:2px dashed var(--border); border-radius:10px; padding:26px;
+    text-align:center; color:var(--muted); font-size:13px; cursor:pointer;
+    transition:.15s;
+  }
+  .drop.drag{border-color:var(--accent); background:#1a2030; color:var(--text);}
+  .opts{display:flex; flex-direction:column; gap:8px; margin-top:14px; font-size:13px;}
+  .opts label{display:flex; align-items:center; gap:8px; cursor:pointer; color:var(--text);}
+  .opts .hint{color:var(--muted); font-size:11px; margin-left:26px; margin-top:-4px;}
+  ul#fileList{list-style:none; padding:0; margin:14px 0 0; display:flex; flex-direction:column; gap:6px;}
+  ul#fileList li{
+    display:flex; align-items:center; gap:8px; background:#12151b;
+    border:1px solid var(--border); border-radius:7px; padding:7px 10px; font-size:13px;
+    cursor:grab;
+  }
+  ul#fileList li.dragging{opacity:.4;}
+  ul#fileList li .name{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  ul#fileList li .path{color:var(--muted); font-size:11px;}
+  ul#fileList li .rm{color:var(--danger); cursor:pointer; font-weight:700; padding:0 4px;}
+  ul#fileList li .grip{color:var(--muted); font-size:12px;}
+  textarea{
+    width:100%; height:340px; background:#0b0d11; color:var(--text);
+    border:1px solid var(--border); border-radius:8px; padding:12px;
+    font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:12.5px;
+    resize:vertical; white-space:pre;
+  }
+  .toolbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
+  .stat{color:var(--muted); font-size:12px;}
+  .badge{
+    display:inline-block; background:#1f2937; color:var(--accent2); font-size:11px;
+    padding:2px 8px; border-radius:20px; margin-left:6px;
+  }
+  .note{
+    font-size:11.5px; color:var(--muted); background:#12151b; border:1px solid var(--border);
+    border-radius:7px; padding:10px 12px; margin-top:10px; line-height:1.5;
+  }
+  input[name=sepstyle]{accent-color:var(--accent);}
+  input[type=text]#sepInput{
+    background:#0b0d11; color:var(--text); border:1px solid var(--border);
+    border-radius:6px; padding:5px 8px; font-size:12px; width:100%; margin-top:6px;
+    font-family:ui-monospace,monospace;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>File Merger</h1>
+  <p class="sub">Pick multiple text-based files (.txt, .c, .cpp, .h, .html, .tex, .lex, .py, .js, etc). They'll be concatenated, each preceded by its filename/path.</p>
+
+  <div class="panel">
+    <div class="drop" id="drop">
+      <div>📁 Click to choose files, or drag &amp; drop them here</div>
+      <div style="margin-top:4px;font-size:11px;">Folder selection also supported (button below)</div>
+    </div>
+    <input type="file" id="fileInput" multiple>
+    <input type="file" id="dirInput" multiple webkitdirectory>
+
+    <div class="row" style="margin-top:12px;">
+      <button class="secondary small" id="pickFilesBtn">＋ Add files</button>
+      <button class="secondary small" id="pickDirBtn">＋ Add folder</button>
+      <button class="secondary small" id="clearBtn">Clear all</button>
+    </div>
+
+    <div class="opts">
+      <div style="font-weight:600; margin-top:4px;">Path style in header</div>
+      <label><input type="radio" name="pathmode" value="relative" checked> Relative path (folder-relative, if picked via folder / drag-drop)</label>
+      <label><input type="radio" name="pathmode" value="name"> Filename only</label>
+      <label><input type="radio" name="pathmode" value="both"> Both (filename + relative path)</label>
+      <div class="hint">Note: browser JavaScript cannot read a file's true absolute OS path (e.g. C:\Users\... or /home/you/...) — this is a security restriction in all browsers, not a limitation of this tool. "Relative path" is the closest available (works when you use "Add folder" or drag a folder in).</div>
+
+      <div style="font-weight:600; margin-top:10px;">Header format</div>
+      <label><input type="radio" name="sepstyle" value="comment" checked> Comment-style block (=== path ===)</label>
+      <label><input type="radio" name="sepstyle" value="custom"> Custom separator</label>
+      <input type="text" id="sepInput" placeholder="e.g. ----- {path} -----" disabled>
+
+      <label style="margin-top:6px;"><input type="checkbox" id="lineNumbers"> Add line numbers to each file's content</label>
+      <label><input type="checkbox" id="trailingNewline" checked> Ensure blank line between files</label>
+    </div>
+  </div>
+
+  <div class="panel" id="listPanel" style="display:none;">
+    <div class="toolbar">
+      <strong>Selected files <span class="badge" id="countBadge">0</span></strong>
+      <span class="stat">Drag to reorder — order here = merge order</span>
+    </div>
+    <ul id="fileList"></ul>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <button id="mergeBtn" disabled>🔀 Merge files</button>
+      <button class="secondary" id="downloadBtn" disabled>⬇ Download merged.txt</button>
+      <button class="secondary" id="copyBtn" disabled>📋 Copy to clipboard</button>
+    </div>
+    <div class="toolbar" style="margin-top:14px;">
+      <span class="stat" id="outStat">Output preview</span>
+    </div>
+    <textarea id="output" placeholder="Merged content will appear here..." readonly></textarea>
+  </div>
+</div>
+
+<script>
+const fileInput = document.getElementById('fileInput');
+const dirInput = document.getElementById('dirInput');
+const drop = document.getElementById('drop');
+const fileListEl = document.getElementById('fileList');
+const listPanel = document.getElementById('listPanel');
+const countBadge = document.getElementById('countBadge');
+const mergeBtn = document.getElementById('mergeBtn');
+const downloadBtn = document.getElementById('downloadBtn');
+const copyBtn = document.getElementById('copyBtn');
+const output = document.getElementById('output');
+const outStat = document.getElementById('outStat');
+const sepInput = document.getElementById('sepInput');
+
+let files = []; // {id, file, relPath}
+let idCounter = 0;
+
+document.getElementById('pickFilesBtn').onclick = () => fileInput.click();
+document.getElementById('pickDirBtn').onclick = () => dirInput.click();
+drop.onclick = () => fileInput.click();
+
+fileInput.onchange = e => addFiles([...e.target.files]);
+dirInput.onchange = e => addFiles([...e.target.files]);
+
+['dragenter','dragover'].forEach(evt => drop.addEventListener(evt, e => {
+  e.preventDefault(); drop.classList.add('drag');
+}));
+['dragleave','drop'].forEach(evt => drop.addEventListener(evt, e => {
+  e.preventDefault(); drop.classList.remove('drag');
+}));
+drop.addEventListener('drop', e => {
+  const dt = e.dataTransfer;
+  if (dt.items && dt.items.length && dt.items[0].webkitGetAsEntry) {
+    const entries = [...dt.items].map(i => i.webkitGetAsEntry()).filter(Boolean);
+    if (entries.length) { walkEntries(entries); return; }
+  }
+  addFiles([...dt.files]);
+});
+
+function walkEntries(entries, base='') {
+  entries.forEach(entry => {
+    if (entry.isFile) {
+      entry.file(f => {
+        f._relPath = base + entry.fullPath.replace(/^\//,'');
+        addFiles([f]);
+      });
+    } else if (entry.isDirectory) {
+      const reader = entry.createReader();
+      reader.readEntries(subEntries => walkEntries(subEntries, base));
+    }
+  });
+}
+
+function addFiles(list) {
+  list.forEach(f => {
+    const rel = f.webkitRelativePath || f._relPath || f.name;
+    files.push({ id: idCounter++, file: f, relPath: rel });
+  });
+  renderList();
+}
+
+function renderList() {
+  fileListEl.innerHTML = '';
+  files.forEach(entry => {
+    const li = document.createElement('li');
+    li.draggable = true;
+    li.dataset.id = entry.id;
+    li.innerHTML = `
+      <span class="grip">⠿</span>
+      <span class="name">${escapeHtml(entry.file.name)}</span>
+      <span class="path">${escapeHtml(entry.relPath)}</span>
+      <span class="rm" title="Remove">✕</span>
+    `;
+    li.querySelector('.rm').onclick = () => {
+      files = files.filter(x => x.id !== entry.id);
+      renderList();
+    };
+    li.addEventListener('dragstart', () => li.classList.add('dragging'));
+    li.addEventListener('dragend', () => li.classList.remove('dragging'));
+    fileListEl.appendChild(li);
+  });
+  fileListEl.addEventListener('dragover', e => {
+    e.preventDefault();
+    const dragging = fileListEl.querySelector('.dragging');
+    if (!dragging) return;
+    const after = [...fileListEl.querySelectorAll('li:not(.dragging)')].find(li => {
+      const box = li.getBoundingClientRect();
+      return e.clientY < box.top + box.height / 2;
+    });
+    if (after) fileListEl.insertBefore(dragging, after);
+    else fileListEl.appendChild(dragging);
+  });
+  fileListEl.addEventListener('drop', () => {
+    const newOrder = [...fileListEl.children].map(li => Number(li.dataset.id));
+    files.sort((a,b) => newOrder.indexOf(a.id) - newOrder.indexOf(b.id));
+  });
+
+  countBadge.textContent = files.length;
+  listPanel.style.display = files.length ? 'block' : 'none';
+  mergeBtn.disabled = files.length === 0;
+  if (!files.length) { downloadBtn.disabled = true; copyBtn.disabled = true; output.value=''; }
+}
+
+document.getElementById('clearBtn').onclick = () => { files = []; renderList(); };
+
+document.querySelectorAll('input[name=sepstyle]').forEach(r => {
+  r.onchange = () => sepInput.disabled = document.querySelector('input[name=sepstyle]:checked').value !== 'custom';
+});
+
+document.getElementById('lineNumbers');
+
+mergeBtn.onclick = async () => {
+  mergeBtn.disabled = true;
+  mergeBtn.textContent = 'Merging...';
+  const pathMode = document.querySelector('input[name=pathmode]:checked').value;
+  const sepStyle = document.querySelector('input[name=sepstyle]:checked').value;
+  const customSep = sepInput.value || '----- {path} -----';
+  const lineNumbers = document.getElementById('lineNumbers').checked;
+  const gapLine = document.getElementById('trailingNewline').checked;
+
+  let out = '';
+  for (const entry of files) {
+    const label = pathMode === 'name' ? entry.file.name
+                : pathMode === 'both' ? `${entry.file.name}  (${entry.relPath})`
+                : entry.relPath;
+
+    let header;
+    if (sepStyle === 'comment') {
+      const bar = '='.repeat(Math.max(10, label.length + 8));
+      header = `${bar}\n===== ${label} =====\n${bar}\n`;
+    } else {
+      header = customSep.replace('{path}', label) + '\n';
+    }
+
+    let content = await entry.file.text();
+    if (lineNumbers) {
+      content = content.split('\n').map((l,i) => `${String(i+1).padStart(4,' ')} | ${l}`).join('\n');
+    }
+
+    out += header + content;
+    if (!content.endsWith('\n')) out += '\n';
+    if (gapLine) out += '\n';
+  }
+
+  output.value = out;
+  outStat.textContent = `Output preview — ${out.length.toLocaleString()} characters, ${files.length} file(s) merged`;
+  downloadBtn.disabled = false;
+  copyBtn.disabled = false;
+  mergeBtn.disabled = false;
+  mergeBtn.textContent = '🔀 Merge files';
+};
+
+downloadBtn.onclick = () => {
+  const blob = new Blob([output.value], {type:'text/plain'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'merged.txt';
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+copyBtn.onclick = async () => {
+  await navigator.clipboard.writeText(output.value);
+  copyBtn.textContent = '✅ Copied!';
+  setTimeout(() => copyBtn.textContent = '📋 Copy to clipboard', 1200);
+};
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+</script>
+</body>
+</html>
