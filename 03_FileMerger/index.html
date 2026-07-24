@@ -114,6 +114,9 @@
       <strong>Selected files <span class="badge" id="countBadge">0</span></strong>
       <span class="stat">Drag to reorder — order here = merge order</span>
     </div>
+    <div class="row" style="margin-bottom:10px;">
+      <button class="secondary small" id="reverseBtn">🔁 Reverse order</button>
+    </div>
     <ul id="fileList"></ul>
   </div>
 
@@ -169,20 +172,39 @@ drop.addEventListener('drop', e => {
   addFiles([...dt.files]);
 });
 
-function walkEntries(entries, base='') {
-  entries.forEach(entry => {
-    if (entry.isFile) {
-      entry.file(f => {
-        f._relPath = base + entry.fullPath.replace(/^\//,'');
-        addFiles([f]);
-      });
-    } else if (entry.isDirectory) {
-      const reader = entry.createReader();
-      reader.readEntries(subEntries => walkEntries(subEntries, base));
-    }
+function entryToFile(entry) {
+  return new Promise(resolve => {
+    entry.file(f => { f._relPath = entry.fullPath.replace(/^\//,''); resolve(f); });
   });
 }
+function readAllEntries(reader) {
+  return new Promise(resolve => {
+    let all = [];
+    const readBatch = () => reader.readEntries(batch => {
+      if (!batch.length) { resolve(all); return; }
+      all = all.concat(batch);
+      readBatch();
+    });
+    readBatch();
+  });
+}
+// Walks dropped entries IN ORDER (sequential await) so file order matches
+// the order they appear in the folder/selection, instead of racing async callbacks.
+async function walkEntries(entries) {
+  for (const entry of entries) {
+    if (entry.isFile) {
+      const f = await entryToFile(entry);
+      addFiles([f]);
+    } else if (entry.isDirectory) {
+      const reader = entry.createReader();
+      const subEntries = await readAllEntries(reader);
+      await walkEntries(subEntries);
+    }
+  }
+}
 
+// Files are always appended to the END of the queue (FIFO) —
+// the first file you add/select stays on top, newest goes to the bottom.
 function addFiles(list) {
   list.forEach(f => {
     const rel = f.webkitRelativePath || f._relPath || f.name;
@@ -211,21 +233,6 @@ function renderList() {
     li.addEventListener('dragend', () => li.classList.remove('dragging'));
     fileListEl.appendChild(li);
   });
-  fileListEl.addEventListener('dragover', e => {
-    e.preventDefault();
-    const dragging = fileListEl.querySelector('.dragging');
-    if (!dragging) return;
-    const after = [...fileListEl.querySelectorAll('li:not(.dragging)')].find(li => {
-      const box = li.getBoundingClientRect();
-      return e.clientY < box.top + box.height / 2;
-    });
-    if (after) fileListEl.insertBefore(dragging, after);
-    else fileListEl.appendChild(dragging);
-  });
-  fileListEl.addEventListener('drop', () => {
-    const newOrder = [...fileListEl.children].map(li => Number(li.dataset.id));
-    files.sort((a,b) => newOrder.indexOf(a.id) - newOrder.indexOf(b.id));
-  });
 
   countBadge.textContent = files.length;
   listPanel.style.display = files.length ? 'block' : 'none';
@@ -234,6 +241,29 @@ function renderList() {
 }
 
 document.getElementById('clearBtn').onclick = () => { files = []; renderList(); };
+
+document.getElementById('reverseBtn').onclick = () => {
+  files.reverse();
+  renderList();
+};
+
+// Drag-to-reorder listeners attached ONCE (not on every render) to avoid stacking
+// duplicate handlers that could corrupt the order.
+fileListEl.addEventListener('dragover', e => {
+  e.preventDefault();
+  const dragging = fileListEl.querySelector('.dragging');
+  if (!dragging) return;
+  const after = [...fileListEl.querySelectorAll('li:not(.dragging)')].find(li => {
+    const box = li.getBoundingClientRect();
+    return e.clientY < box.top + box.height / 2;
+  });
+  if (after) fileListEl.insertBefore(dragging, after);
+  else fileListEl.appendChild(dragging);
+});
+fileListEl.addEventListener('drop', () => {
+  const newOrder = [...fileListEl.children].map(li => Number(li.dataset.id));
+  files.sort((a,b) => newOrder.indexOf(a.id) - newOrder.indexOf(b.id));
+});
 
 document.querySelectorAll('input[name=sepstyle]').forEach(r => {
   r.onchange = () => sepInput.disabled = document.querySelector('input[name=sepstyle]:checked').value !== 'custom';
