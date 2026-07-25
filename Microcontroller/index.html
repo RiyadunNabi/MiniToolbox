@@ -1,1 +1,107 @@
-hh
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>8x8 LED Matrix Designer</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: #f2f2f2;
+    padding: 30px;
+  }
+  h2 {
+    margin-bottom: 20px;
+  }
+  #grid {
+    display: grid;
+    grid-template-columns: repeat(8, 50px);
+    grid-template-rows: repeat(8, 50px);
+    gap: 4px;
+    background: #222;
+    padding: 8px;
+    border-radius: 6px;
+  }
+  .cell {
+    width: 50px;
+    height: 50px;
+    background: white;
+    border: 1px solid #999;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .cell.on {
+    background: black;
+  }
+  button#generateBtn {
+    margin-top: 20px;
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    border: none;
+    border-radius: 5px;
+    background: #333;
+    color: white;
+  }
+  button#generateBtn:hover {
+    background: #555;
+  }
+  textarea {
+    margin-top: 20px;
+    width: 400px;
+    height: 180px;
+    font-family: monospace;
+    font-size: 14px;
+    padding: 10px;
+    resize: vertical;
+  }
+</style>
+</head>
+<body>
+
+<h2>8x8 LED Matrix Designer</h2>
+
+<div id="grid"></div>
+
+<button id="generateBtn">Generate Matrix</button>
+
+<textarea id="output" readonly placeholder="Generated matrix will appear here..."></textarea>
+
+<script>
+  const GRID_SIZE = 8;
+  const grid = Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(0));
+
+  const gridEl = document.getElementById("grid");
+
+  for (let r = 0; r < GRID_SIZE; r++) {
+    for (let c = 0; c < GRID_SIZE; c++) {
+      const cell = document.createElement("div");
+      cell.classList.add("cell");
+      cell.dataset.row = r;
+      cell.dataset.col = c;
+      cell.addEventListener("click", () => toggle(r, c, cell));
+      gridEl.appendChild(cell);
+    }
+  }
+
+  function toggle(r, c, cell) {
+    grid[r][c] ^= 1;
+    cell.classList.toggle("on", grid[r][c] === 1);
+  }
+
+  document.getElementById("generateBtn").addEventListener("click", () => {
+    let lines = ["uint8_t matrix[8] = {"];
+    for (const row of grid) {
+      const bits = row.join("");
+      lines.push(`    0b${bits},`);
+    }
+    lines.push("};");
+    document.getElementById("output").value = lines.join("\n");
+  });
+</script>
+
+</body>
+</html>
