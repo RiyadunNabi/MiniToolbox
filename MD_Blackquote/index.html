@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MD Blockquote Converter</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #0d1117;
+    color: #c9d1d9;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    padding: 10px 16px;
+    border-bottom: 1px solid #30363d;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  header h1 {
+    font-size: 15px;
+    margin: 0;
+    font-weight: 600;
+    color: #e6edf3;
+  }
+  header input {
+    background: #161b22;
+    border: 1px solid #30363d;
+    color: #c9d1d9;
+    padding: 5px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    flex: 1;
+    max-width: 260px;
+  }
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1px;
+    background: #30363d;
+    overflow: hidden;
+  }
+  .col {
+    background: #0d1117;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .col-header {
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #8b949e;
+    border-bottom: 1px solid #30363d;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  .copy-btn {
+    background: #238636;
+    border: none;
+    color: white;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .copy-btn:hover { background: #2ea043; }
+  .copy-btn.copied { background: #1f6feb; }
+  textarea, pre {
+    flex: 1;
+    margin: 0;
+    padding: 12px;
+    background: #0d1117;
+    color: #c9d1d9;
+    border: none;
+    resize: none;
+    font-family: "SF Mono", Consolas, monospace;
+    font-size: 12.5px;
+    line-height: 1.5;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  textarea:focus { outline: none; }
+  pre { cursor: text; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📋 MD Blockquote Converter</h1>
+  <input id="summaryInput" type="text" placeholder="Summary/title for details block (optional)" value="Click to see details">
+</header>
+
+<main>
+  <div class="col">
+    <div class="col-header">
+      <span>1. Paste your content</span>
+    </div>
+    <textarea id="inputText" placeholder="Paste LLM / chat content here..." oninput="convert()"></textarea>
+  </div>
+
+  <div class="col">
+    <div class="col-header">
+      <span>2. Blockquote only</span>
+      <button class="copy-btn" id="btn1" onclick="copyOut('out1', 'btn1')">Copy</button>
+    </div>
+    <pre id="out1"></pre>
+  </div>
+
+  <div class="col">
+    <div class="col-header">
+      <span>3. Expandable + blockquote</span>
+      <button class="copy-btn" id="btn2" onclick="copyOut('out2', 'btn2')">Copy</button>
+    </div>
+    <pre id="out2"></pre>
+  </div>
+</main>
+
+<script>
+function toBlockquote(text) {
+  return text
+    .split("\n")
+    .map(line => line.trim() === "" ? ">" : "> " + line)
+    .join("\n");
+}
+
+function convert() {
+  const raw = document.getElementById('inputText').value;
+  const summary = document.getElementById('summaryInput').value.trim() || "Click to see details";
+
+  if (!raw.trim()) {
+    document.getElementById('out1').textContent = "";
+    document.getElementById('out2').textContent = "";
+    return;
+  }
+
+  const quoted = toBlockquote(raw);
+
+  // Option 1: plain blockquote
+  document.getElementById('out1').textContent = quoted;
+
+  // Option 2: details + blockquote
+  const wrapped =
+`<details>
+<summary>💡 ${summary}</summary>
+
+${quoted}
+
+</details>`;
+  document.getElementById('out2').textContent = wrapped;
+}
+
+function copyOut(id, btnId) {
+  const text = document.getElementById(id).textContent;
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById(btnId);
+    const original = btn.textContent;
+    btn.textContent = "Copied!";
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = original;
+      btn.classList.remove('copied');
+    }, 1200);
+  });
+}
+
+document.getElementById('summaryInput').addEventListener('input', convert);
+</script>
+
+</body>
+</html>
