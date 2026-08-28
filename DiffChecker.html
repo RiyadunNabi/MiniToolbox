@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>diffcheck — comment-blind code diff</title>
+<style>
+  :root{
+    --bg:        #14161a;
+    --bg-raised: #1b1e24;
+    --bg-panel:  #191c21;
+    --line:      #2a2e36;
+    --line-soft: #23262c;
+    --text:      #dfe2e8;
+    --text-dim:  #7d8492;
+    --text-faint:#565c68;
+    --amber:     #e8a33d;
+    --amber-dim: #8a6427;
+    --add-bg:    #1e2a20;
+    --add-bd:    #3a6b3f;
+    --add-tx:    #8fd19e;
+    --del-bg:    #2b1e1e;
+    --del-bd:    #6b3a3a;
+    --del-tx:    #d19a8f;
+    --chg-bg:    #2a2418;
+    --chg-bd:    #6b5a2e;
+    --chg-tx:    #e8c98f;
+    --mono: "JetBrains Mono", "Fira Code", ui-monospace, "SF Mono", Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html,body{
+    margin:0; padding:0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap{ max-width: 1280px; margin: 0 auto; padding: 28px 20px 60px; }
+
+  /* ---------- header ---------- */
+  header{
+    display:flex; align-items:baseline; justify-content:space-between;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 16px; margin-bottom: 22px;
+    flex-wrap: wrap; gap: 10px;
+  }
+  .brand{ display:flex; align-items:baseline; gap: 10px; }
+  .brand .dot{ color: var(--amber); }
+  h1{
+    font-size: 17px; font-weight: 700; letter-spacing: 0.02em;
+    margin: 0; color: var(--text);
+  }
+  h1 span{ color: var(--text-faint); font-weight: 500; }
+  .tagline{ font-size: 12px; color: var(--text-faint); margin-top: 2px; }
+  .badge{
+    font-size: 10.5px; color: var(--amber-dim);
+    border: 1px solid var(--amber-dim);
+    border-radius: 3px; padding: 3px 8px;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    align-self: center;
+  }
+
+  /* ---------- controls ---------- */
+  .controls{
+    display:flex; flex-wrap: wrap; align-items:center; gap: 14px 20px;
+    background: var(--bg-raised);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    font-size: 12.5px;
+  }
+  .ctl-group{ display:flex; align-items:center; gap: 8px; }
+  .ctl-label{ color: var(--text-faint); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+  select{
+    background: var(--bg-panel); color: var(--text);
+    border: 1px solid var(--line); border-radius: 4px;
+    font-family: var(--mono); font-size: 12.5px;
+    padding: 5px 8px; outline: none; cursor: pointer;
+  }
+  select:focus{ border-color: var(--amber-dim); }
+  label.chk{
+    display:flex; align-items:center; gap: 6px; cursor:pointer;
+    color: var(--text-dim); user-select:none;
+  }
+  label.chk input{ accent-color: var(--amber); cursor:pointer; }
+  label.chk.active{ color: var(--text); }
+  .spacer{ flex: 1; }
+
+  input[type=text].regex-input{
+    background: var(--bg-panel); color: var(--text);
+    border: 1px solid var(--line); border-radius: 4px;
+    font-family: var(--mono); font-size: 12px;
+    padding: 5px 8px; width: 220px; outline: none;
+  }
+  input[type=text].regex-input:focus{ border-color: var(--amber-dim); }
+  input[type=text].regex-input::placeholder{ color: var(--text-faint); }
+
+  button#compareBtn{
+    background: var(--amber); color: #1a1508;
+    border: none; border-radius: 4px;
+    font-family: var(--mono); font-weight: 700; font-size: 12.5px;
+    padding: 8px 18px; cursor: pointer;
+    letter-spacing: 0.03em;
+    transition: filter 0.12s ease, transform 0.05s ease;
+  }
+  button#compareBtn:hover{ filter: brightness(1.1); }
+  button#compareBtn:active{ transform: translateY(1px); }
+
+  /* ---------- input panels ---------- */
+  .inputs{
+    display:grid; grid-template-columns: 1fr 1fr; gap: 14px;
+    margin-bottom: 18px;
+  }
+  .panel{
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+    display:flex; flex-direction: column;
+  }
+  .panel-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--line);
+    font-size: 11px; color: var(--text-faint);
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .panel-head .side-a{ color: var(--del-tx); }
+  .panel-head .side-b{ color: var(--add-tx); }
+  .panel-head .count{ color: var(--text-faint); text-transform:none; letter-spacing:0; font-size:11px; }
+  textarea{
+    width: 100%; min-height: 220px; resize: vertical;
+    background: transparent; color: var(--text);
+    border: none; outline: none;
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.55;
+    padding: 12px; tab-size: 4;
+  }
+  textarea::placeholder{ color: var(--text-faint); }
+
+  /* ---------- stats ---------- */
+  .stats{
+    display:flex; align-items:center; gap: 18px; flex-wrap: wrap;
+    font-size: 12px; color: var(--text-dim);
+    padding: 10px 4px; margin-bottom: 10px;
+    display: none;
+  }
+  .stats.show{ display:flex; }
+  .stat-chip{ display:flex; align-items:center; gap: 6px; }
+  .swatch{ width: 9px; height: 9px; border-radius: 2px; display:inline-block; }
+  .swatch.add{ background: var(--add-tx); }
+  .swatch.del{ background: var(--del-tx); }
+  .swatch.chg{ background: var(--chg-tx); }
+  .stats .sep{ color: var(--line); }
+  .stats .identical{ color: var(--add-tx); font-weight:600; }
+
+  /* ---------- diff output ---------- */
+  .diff-wrap{
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+    display: none;
+  }
+  .diff-wrap.show{ display:block; }
+  .diff-head{
+    display:grid; grid-template-columns: 1fr 1fr;
+    border-bottom: 1px solid var(--line);
+  }
+  .diff-head > div{
+    padding: 9px 14px; font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--text-faint);
+  }
+  .diff-head > div:first-child{ border-right: 1px solid var(--line); }
+
+  .diff-body{
+    display:grid; grid-template-columns: 1fr 1fr;
+    max-height: 640px; overflow-y: auto;
+    font-size: 12.5px; line-height: 1.6;
+  }
+  .diff-col{ border-right: 1px solid var(--line); overflow-x: auto; }
+  .diff-col:last-child{ border-right: none; }
+
+  .dline{
+    display:flex; white-space: pre;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .dline .ln{
+    flex: 0 0 46px; text-align: right; padding: 2px 10px;
+    color: var(--text-faint); user-select: none;
+    border-right: 1px solid var(--line-soft);
+  }
+  .dline .code{ padding: 2px 12px 2px 10px; flex: 1; overflow-x: auto; }
+  .dline.empty .code{ color: var(--text-faint); }
+  .dline.ctx{ background: transparent; }
+  .dline.add{ background: var(--add-bg); }
+  .dline.add .ln{ color: var(--add-tx); }
+  .dline.del{ background: var(--del-bg); }
+  .dline.del .ln{ color: var(--del-tx); }
+  .dline.chg{ background: var(--chg-bg); }
+  .dline.chg .ln{ color: var(--chg-tx); }
+
+  .wdiff-add{ background: rgba(143,209,158,0.28); border-radius:2px; }
+  .wdiff-del{ background: rgba(209,154,143,0.28); border-radius:2px; text-decoration: line-through; text-decoration-color: rgba(209,154,143,0.6); }
+
+  .empty-state{
+    text-align:center; padding: 50px 20px; color: var(--text-faint); font-size: 13px;
+  }
+
+  footer{
+    margin-top: 22px; text-align:center; font-size: 11px; color: var(--text-faint);
+  }
+
+  @media (max-width: 760px){
+    .inputs{ grid-template-columns: 1fr; }
+    .diff-head, .diff-body{ grid-template-columns: 1fr; }
+    .diff-col:first-child{ border-right:none; border-bottom: 1px solid var(--line); }
+    .diff-head > div:first-child{ border-right:none; border-bottom: 1px solid var(--line); }
+  }
+
+  ::-webkit-scrollbar{ width: 9px; height: 9px; }
+  ::-webkit-scrollbar-track{ background: var(--bg-panel); }
+  ::-webkit-scrollbar-thumb{ background: var(--line); border-radius: 5px; }
+  ::-webkit-scrollbar-thumb:hover{ background: var(--text-faint); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <div class="brand">
+        <span class="dot">▍</span><h1>diffcheck <span>/ comment-blind</span></h1>
+      </div>
+      <div class="tagline">strips comments before comparing — only the code counts</div>
+    </div>
+    <div class="badge">local · no upload</div>
+  </header>
+
+  <div class="controls">
+    <div class="ctl-group">
+      <span class="ctl-label">Language</span>
+      <select id="langSelect">
+        <option value="cpp" selected>C / C++</option>
+        <option value="java">Java</option>
+        <option value="python">Python</option>
+        <option value="js">JavaScript / TS</option>
+        <option value="custom">Custom</option>
+      </select>
+    </div>
+
+    <div class="ctl-group" id="customRegexGroup" style="display:none;">
+      <span class="ctl-label">Pattern</span>
+      <input type="text" class="regex-input" id="customRegex" placeholder="e.g. --.*  or  ;.*">
+    </div>
+
+    <label class="chk active" id="lblStripLine">
+      <input type="checkbox" id="stripLine" checked> strip line comments
+    </label>
+    <label class="chk active" id="lblStripBlock">
+      <input type="checkbox" id="stripBlock" checked> strip block comments
+    </label>
+    <label class="chk active">
+      <input type="checkbox" id="ignoreWs" checked> ignore blank lines
+    </label>
+    <label class="chk">
+      <input type="checkbox" id="trimWs"> trim line whitespace
+    </label>
+
+    <div class="spacer"></div>
+    <button id="compareBtn">Compare ⏎</button>
+  </div>
+
+  <div class="inputs">
+    <div class="panel">
+      <div class="panel-head"><span class="side-a">Original — A</span><span class="count" id="countA">0 lines</span></div>
+      <textarea id="codeA" placeholder="Paste the first version here..." spellcheck="false"></textarea>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><span class="side-b">Modified — B</span><span class="count" id="countB">0 lines</span></div>
+      <textarea id="codeB" placeholder="Paste the second version here..." spellcheck="false"></textarea>
+    </div>
+  </div>
+
+  <div class="stats" id="stats">
+    <span class="stat-chip"><span class="swatch add"></span><span id="statAdd">0 added</span></span>
+    <span class="sep">·</span>
+    <span class="stat-chip"><span class="swatch del"></span><span id="statDel">0 removed</span></span>
+    <span class="sep">·</span>
+    <span class="stat-chip"><span class="swatch chg"></span><span id="statChg">0 changed</span></span>
+    <span class="sep">·</span>
+    <span id="statResult"></span>
+  </div>
+
+  <div class="diff-wrap" id="diffWrap">
+    <div class="diff-head"><div>Original</div><div>Modified</div></div>
+    <div class="diff-body" id="diffBody">
+      <div class="diff-col" id="colA"></div>
+      <div class="diff-col" id="colB"></div>
+    </div>
+  </div>
+
+  <footer>runs entirely in your browser — nothing leaves this tab</footer>
+</div>
+
+<script>
+(function(){
+  const langSelect   = document.getElementById('langSelect');
+  const customGroup  = document.getElementById('customRegexGroup');
+  const customRegex  = document.getElementById('customRegex');
+  const stripLine    = document.getElementById('stripLine');
+  const stripBlock   = document.getElementById('stripBlock');
+  const ignoreWs     = document.getElementById('ignoreWs');
+  const trimWs       = document.getElementById('trimWs');
+  const codeA        = document.getElementById('codeA');
+  const codeB        = document.getElementById('codeB');
+  const countA       = document.getElementById('countA');
+  const countB       = document.getElementById('countB');
+  const compareBtn   = document.getElementById('compareBtn');
+  const diffWrap     = document.getElementById('diffWrap');
+  const colA         = document.getElementById('colA');
+  const colB         = document.getElementById('colB');
+  const statsBox     = document.getElementById('stats');
+  const statAdd      = document.getElementById('statAdd');
+  const statDel      = document.getElementById('statDel');
+  const statChg      = document.getElementById('statChg');
+  const statResult   = document.getElementById('statResult');
+
+  // ---- language presets ----
+  // each preset: lineComment regex (global), blockComment regex (global)
+  const PRESETS = {
+    cpp:    { line: /\/\/.*$/gm,        block: /\/\*[\s\S]*?\*\//g },
+    java:   { line: /\/\/.*$/gm,        block: /\/\*[\s\S]*?\*\//g },
+    js:     { line: /\/\/.*$/gm,        block: /\/\*[\s\S]*?\*\//g },
+    python: { line: /#.*$/gm,           block: /("""[\s\S]*?"""|'''[\s\S]*?''')/g },
+    custom: { line: null,               block: null }
+  };
+
+  langSelect.addEventListener('change', () => {
+    customGroup.style.display = langSelect.value === 'custom' ? 'flex' : 'none';
+  });
+
+  [stripLine, stripBlock].forEach(cb => {
+    cb.addEventListener('change', () => {
+      document.getElementById('lbl' + (cb.id === 'stripLine' ? 'StripLine' : 'StripBlock'))
+        .classList.toggle('active', cb.checked);
+    });
+  });
+
+  function updateCounts(){
+    countA.textContent = (codeA.value ? codeA.value.split('\n').length : 0) + ' lines';
+    countB.textContent = (codeB.value ? codeB.value.split('\n').length : 0) + ' lines';
+  }
+  codeA.addEventListener('input', updateCounts);
+  codeB.addEventListener('input', updateCounts);
+  updateCounts();
+
+  function escapeHtml(s){
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // Strip comments from source text according to current settings.
+  // NOTE: this is a pragmatic stripper (regex-based), not a full tokenizer,
+  // so it does its best to avoid mangling string literals containing // or /* */
+  // by masking string/char literals before stripping, then restoring them.
+  function stripComments(src){
+    const lang = langSelect.value;
+    let lineRe, blockRe;
+
+    if (lang === 'custom'){
+      const pattern = customRegex.value.trim();
+      lineRe = pattern ? new RegExp(pattern, 'gm') : null;
+      blockRe = null;
+    } else {
+      const preset = PRESETS[lang];
+      lineRe = stripLine.checked ? preset.line : null;
+      blockRe = stripBlock.checked ? preset.block : null;
+    }
+
+    if (!lineRe && !blockRe) return src;
+
+    // Mask string/char literals (best-effort) so comment markers inside them
+    // aren't stripped. Skip masking for python triple-quoted block handling.
+    const stash = [];
+    let masked = src.replace(/"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'/g, (m) => {
+      stash.push(m);
+      return '\u0000' + (stash.length - 1) + '\u0001';
+    });
+
+    if (blockRe) masked = masked.replace(blockRe, '');
+    if (lineRe)  masked = masked.replace(lineRe, '');
+
+    // restore strings
+    masked = masked.replace(/\u0000(\d+)\u0001/g, (_, i) => stash[Number(i)]);
+    return masked;
+  }
+
+  function preprocessLines(text){
+    let stripped = stripComments(text);
+    let lines = stripped.split('\n');
+    if (trimWs.checked) lines = lines.map(l => l.trim());
+    if (ignoreWs.checked) lines = lines.filter(l => l.trim() !== '');
+    return lines;
+  }
+
+  // ---- LCS-based line diff (Myers-ish via DP), returns list of ops ----
+  // ops: {type:'ctx'|'add'|'del'|'chg', a: str|null, b: str|null}
+  function diffLines(a, b){
+    const n = a.length, m = b.length;
+    const dp = Array.from({length: n+1}, () => new Int32Array(m+1));
+    for (let i = n-1; i >= 0; i--){
+      for (let j = m-1; j >= 0; j--){
+        dp[i][j] = a[i] === b[j] ? dp[i+1][j+1] + 1 : Math.max(dp[i+1][j], dp[i][j+1]);
+      }
+    }
+    const ops = [];
+    let i = 0, j = 0;
+    while (i < n && j < m){
+      if (a[i] === b[j]){
+        ops.push({type:'ctx', a:a[i], b:b[j]});
+        i++; j++;
+      } else if (dp[i+1][j] >= dp[i][j+1]){
+        ops.push({type:'del', a:a[i], b:null});
+        i++;
+      } else {
+        ops.push({type:'add', a:null, b:b[j]});
+        j++;
+      }
+    }
+    while (i < n){ ops.push({type:'del', a:a[i], b:null}); i++; }
+    while (j < m){ ops.push({type:'add', a:null, b:b[j]}); j++; }
+
+    // collapse adjacent del+add pairs into 'chg' (replaced line) for nicer coloring
+    const merged = [];
+    for (let k = 0; k < ops.length; k++){
+      const cur = ops[k], next = ops[k+1];
+      if (cur.type === 'del' && next && next.type === 'add'){
+        merged.push({type:'chg', a: cur.a, b: next.b});
+        k++;
+      } else {
+        merged.push(cur);
+      }
+    }
+    return merged;
+  }
+
+  // word-level diff for a changed line pair, returns {aHtml, bHtml}
+  function wordDiff(aLine, bLine){
+    const tokenize = s => s.match(/\s+|[A-Za-z_]\w*|\d+(\.\d+)?|.|\n/g) || [];
+    const at = tokenize(aLine), bt = tokenize(bLine);
+    const n = at.length, m = bt.length;
+    const dp = Array.from({length: n+1}, () => new Int32Array(m+1));
+    for (let i = n-1; i >= 0; i--)
+      for (let j = m-1; j >= 0; j--)
+        dp[i][j] = at[i] === bt[j] ? dp[i+1][j+1] + 1 : Math.max(dp[i+1][j], dp[i][j+1]);
+
+    let i=0, j=0;
+    let aOut = '', bOut = '';
+    while (i < n && j < m){
+      if (at[i] === bt[j]){
+        const e = escapeHtml(at[i]);
+        aOut += e; bOut += e; i++; j++;
+      } else if (dp[i+1][j] >= dp[i][j+1]){
+        aOut += '<span class="wdiff-del">' + escapeHtml(at[i]) + '</span>'; i++;
+      } else {
+        bOut += '<span class="wdiff-add">' + escapeHtml(bt[j]) + '</span>'; j++;
+      }
+    }
+    while (i < n){ aOut += '<span class="wdiff-del">' + escapeHtml(at[i]) + '</span>'; i++; }
+    while (j < m){ bOut += '<span class="wdiff-add">' + escapeHtml(bt[j]) + '</span>'; j++; }
+    return {aHtml: aOut, bHtml: bOut};
+  }
+
+  function makeLine(lnNum, cls, htmlContent, isEmpty){
+    const div = document.createElement('div');
+    div.className = 'dline ' + cls + (isEmpty ? ' empty' : '');
+    const ln = document.createElement('div');
+    ln.className = 'ln';
+    ln.textContent = isEmpty ? '' : lnNum;
+    const code = document.createElement('div');
+    code.className = 'code';
+    code.innerHTML = isEmpty ? '&nbsp;' : (htmlContent === '' ? '&nbsp;' : htmlContent);
+    div.appendChild(ln); div.appendChild(code);
+    return div;
+  }
+
+  function render(ops){
+    colA.innerHTML = ''; colB.innerHTML = '';
+    let aNum = 0, bNum = 0;
+    let added = 0, removed = 0, changed = 0;
+
+    ops.forEach(op => {
+      if (op.type === 'ctx'){
+        aNum++; bNum++;
+        colA.appendChild(makeLine(aNum, 'ctx', escapeHtml(op.a)));
+        colB.appendChild(makeLine(bNum, 'ctx', escapeHtml(op.b)));
+      } else if (op.type === 'del'){
+        aNum++; removed++;
+        colA.appendChild(makeLine(aNum, 'del', escapeHtml(op.a)));
+        colB.appendChild(makeLine(null, 'del', '', true));
+      } else if (op.type === 'add'){
+        bNum++; added++;
+        colA.appendChild(makeLine(null, 'add', '', true));
+        colB.appendChild(makeLine(bNum, 'add', escapeHtml(op.b)));
+      } else if (op.type === 'chg'){
+        aNum++; bNum++; changed++;
+        const {aHtml, bHtml} = wordDiff(op.a, op.b);
+        colA.appendChild(makeLine(aNum, 'chg', aHtml));
+        colB.appendChild(makeLine(bNum, 'chg', bHtml));
+      }
+    });
+
+    statAdd.textContent = added + ' added';
+    statDel.textContent = removed + ' removed';
+    statChg.textContent = changed + ' changed';
+    if (added === 0 && removed === 0 && changed === 0){
+      statResult.innerHTML = '<span class="identical">identical after stripping comments ✓</span>';
+    } else {
+      statResult.textContent = 'differences found';
+    }
+    statsBox.classList.add('show');
+    diffWrap.classList.add('show');
+  }
+
+  function compare(){
+    const rawA = codeA.value, rawB = codeB.value;
+    if (!rawA.trim() && !rawB.trim()){
+      diffWrap.classList.remove('show');
+      statsBox.classList.remove('show');
+      return;
+    }
+    const linesA = preprocessLines(rawA);
+    const linesB = preprocessLines(rawB);
+    const ops = diffLines(linesA, linesB);
+    render(ops);
+    diffWrap.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+
+  compareBtn.addEventListener('click', compare);
+
+  // Ctrl/Cmd+Enter to compare from either textarea
+  [codeA, codeB, customRegex].forEach(el => {
+    el.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') compare();
+    });
+  });
+
+  // sync scroll between diff columns
+  let syncing = false;
+  function syncScroll(src, dst){
+    src.addEventListener('scroll', () => {
+      if (syncing) return;
+      syncing = true;
+      dst.scrollTop = src.scrollTop;
+      syncing = false;
+    });
+  }
+  syncScroll(colA, colB);
+  syncScroll(colB, colA);
+})();
+</script>
+</body>
+</html>
