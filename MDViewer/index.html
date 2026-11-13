@@ -90,6 +90,61 @@
   #resizer { position: absolute; top: 0; right: -3px; width: 6px; height: 100%; cursor: col-resize; z-index: 3; }
   #resizer:hover, #resizer.drag { background: var(--link); opacity: .4; }
 
+  /* ---------- right rail + timer ---------- */
+  #rail-r {
+    width: 44px; flex: none; background: var(--rail); border-left: 1px solid var(--border);
+    display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0;
+  }
+  #b-timer { height: auto; min-height: 34px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 2px; padding: 6px 0; }
+  #mini { font-size: 10px; line-height: 1; color: var(--link); font-variant-numeric: tabular-nums; }
+  #mini:empty { display: none; }
+  #timerpanel {
+    width: 230px; flex: none; background: var(--panel); border-left: 1px solid var(--border);
+    padding: 14px 12px; display: flex; flex-direction: column; gap: 14px; overflow: auto;
+  }
+  #timerpanel.hidden { display: none; }
+  #timerpanel .tabs { display: flex; background: var(--rail); border-radius: 8px; padding: 3px; gap: 3px; }
+  #timerpanel button {
+    background: var(--panel); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 13px; cursor: pointer;
+  }
+  #timerpanel button:hover { background: var(--hover); }
+  #timerpanel .tabs button { flex: 1; background: transparent; border: 0; color: var(--muted); }
+  #timerpanel .tabs button.on { background: var(--active); color: var(--text); }
+  #tdisp { font-size: 40px; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; letter-spacing: .02em; padding: 8px 0; }
+  #tdisp.done { color: #ef6a5b; animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .btnrow { display: flex; gap: 8px; }
+  .btnrow button { flex: 1; }
+  #tstart { background: var(--link) !important; color: #fff !important; border-color: transparent !important; font-weight: 600; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips button { padding: 4px 10px !important; font-size: 12px !important; }
+  .chips button.on { background: var(--active) !important; border-color: var(--link) !important; }
+  .custom { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); }
+  .custom input {
+    width: 64px; background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 5px 8px; font: inherit; font-size: 13px;
+  }
+  #tlabel { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+  /* ---------- floating timer ---------- */
+  #float {
+    position: fixed; top: 16px; right: 64px; z-index: 20;
+    display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 14px;
+    background: var(--panel); color: var(--text); border: 1px solid var(--border);
+    border-radius: 999px; box-shadow: 0 6px 20px rgba(0,0,0,.35);
+    cursor: grab; user-select: none; touch-action: none;
+  }
+  #float.hidden { display: none; }
+  #float .fl { font-size: 10px; line-height: 1.1; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  #float .ft { font-size: 22px; line-height: 1.1; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+  #float.done .ft { color: #ef6a5b; animation: pulse 1s ease-in-out infinite; }
+  #float .fb {
+    width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%;
+    background: var(--active); color: var(--text); cursor: pointer; font-size: 12px;
+  }
+  #float .fb:hover { background: var(--hover); }
+
   /* ---------- main ---------- */
   #main { flex: 1; min-width: 0; overflow-y: auto; position: relative; }
   #drop {
@@ -165,6 +220,53 @@
     </div>
     <article id="out"></article>
   </main>
+
+  <div id="float" class="hidden">
+    <div>
+      <div class="fl" id="flab">Focus</div>
+      <div class="ft" id="ftime">30:00</div>
+    </div>
+    <button class="fb" id="fplay" title="Start / Pause">▶</button>
+    <button class="fb" id="fpop" title="Pop out (stays on top of other apps)">⧉</button>
+    <button class="fb" id="fx" title="Hide">✕</button>
+  </div>
+
+  <aside id="timerpanel" class="hidden">
+    <div id="tlabel">Focus timer</div>
+    <div class="tabs">
+      <button id="tab-down" class="on">Countdown</button>
+      <button id="tab-up">Stopwatch</button>
+    </div>
+    <div id="tdisp">30:00</div>
+    <div class="btnrow">
+      <button id="tstart">Start</button>
+      <button id="treset">Reset</button>
+    </div>
+    <div class="btnrow">
+      <button id="tfloat">Floating</button>
+    </div>
+    <div id="cdtools">
+      <div class="chips" id="chips">
+        <button data-m="15">15m</button>
+        <button data-m="25">25m</button>
+        <button data-m="30" class="on">30m</button>
+        <button data-m="45">45m</button>
+        <button data-m="60">60m</button>
+      </div>
+      <div class="custom" style="margin-top:12px">
+        <span>Custom</span>
+        <input id="cmin" type="number" min="1" max="600" placeholder="min">
+        <button id="cset">Set</button>
+      </div>
+    </div>
+  </aside>
+
+  <nav id="rail-r">
+    <button class="ib" id="b-timer" title="Focus timer" aria-label="Toggle timer">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9.5 2.5h5"/></svg>
+      <span id="mini"></span>
+    </button>
+  </nav>
 
   <input id="file" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden>
   <input id="dirfallback" type="file" webkitdirectory hidden>
@@ -463,11 +565,208 @@
     if (t) render(t, 'Pasted markdown');
   });
 
+  /* ================= focus timer ================= */
+  const T = {
+    down: { target: 30 * 60000, base: 0, start: 0, running: false, done: false },
+    up:   { base: 0, start: 0, running: false }
+  };
+  let tab = 'down', actx = null;
+  const elapsed = t => t.base + (t.running ? Date.now() - t.start : 0);
+  const value = k => (k === 'down' ? T.down.target - elapsed(T.down) : elapsed(T.up));
+
+  function fmt(ms, mode) {
+    ms = Math.max(0, ms);
+    const total = mode === 'down' ? Math.ceil(ms / 1000) : Math.floor(ms / 1000);
+    const h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
+    const p = n => String(n).padStart(2, '0');
+    return h ? h + ':' + p(m) + ':' + p(s) : p(m) + ':' + p(s);
+  }
+
+  function paintTimer() {
+    const d = T[tab];
+    $('tdisp').textContent = fmt(value(tab), tab);
+    $('tdisp').classList.toggle('done', tab === 'down' && T.down.done);
+    const started = elapsed(d) > 0 && !(tab === 'down' && T.down.done);
+    $('tstart').textContent = d.running ? 'Pause' : (started ? 'Resume' : 'Start');
+    const run = T.down.running ? 'down' : (T.up.running ? 'up' : null);
+    $('mini').textContent = run ? fmt(value(run), run) : (T.down.done ? '00:00' : '');
+    paintFloat();
+  }
+
+  function beep() {
+    if (!actx) return;
+    try {
+      [0, 0.35, 0.7].forEach(t => {
+        const o = actx.createOscillator(), g = actx.createGain();
+        o.frequency.value = 880; g.gain.value = 0.15;
+        o.connect(g); g.connect(actx.destination);
+        o.start(actx.currentTime + t); o.stop(actx.currentTime + t + 0.22);
+      });
+    } catch (e) {}
+  }
+
+  function resetTimer(k) {
+    const d = T[k];
+    d.base = 0; d.running = false;
+    if (k === 'down') d.done = false;
+  }
+
+  let floatOn = false, floatDismissed = false, pip = null;
+  const activeKey = () => (T.down.running ? 'down' : T.up.running ? 'up' : tab);
+
+  function toggleKey(k) {
+    try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); actx.resume(); } catch (e) {}
+    const d = T[k];
+    if (d.running) { d.base = elapsed(d); d.running = false; }
+    else {
+      if (k === 'down' && T.down.done) resetTimer('down');
+      d.start = Date.now(); d.running = true;
+      if (!floatDismissed) floatOn = true;   // floating clock appears when you start
+    }
+    paintTimer();
+  }
+  $('tstart').onclick = () => toggleKey(tab);
+
+  function paintFloat() {
+    const k = activeKey(), d = T[k];
+    const time = fmt(value(k), k);
+    const label = k === 'down' ? 'Focus' : 'Stopwatch';
+    const play = d.running ? '❚❚' : '▶';
+    const done = k === 'down' && T.down.done;
+    $('float').classList.toggle('hidden', !floatOn || !!pip);
+    $('float').classList.toggle('done', done);
+    $('ftime').textContent = time;
+    $('flab').textContent = label;
+    $('fplay').textContent = play;
+    $('tfloat').textContent = floatOn ? 'Hide floating' : 'Floating';
+    if (pip) {
+      pip.time.textContent = time; pip.lab.textContent = label; pip.play.textContent = play;
+      pip.time.style.color = done ? '#ef6a5b' : '';
+    }
+  }
+
+  $('fplay').onclick = () => toggleKey(activeKey());
+  $('fx').onclick = () => { floatOn = false; floatDismissed = true; paintFloat(); };
+  $('tfloat').onclick = () => { floatOn = !floatOn; floatDismissed = !floatOn; paintFloat(); };
+
+  // drag the floating clock anywhere
+  (() => {
+    const f = $('float');
+    let dx = 0, dy = 0, drag = false;
+    f.addEventListener('pointerdown', e => {
+      if (e.target.closest('button')) return;
+      const r = f.getBoundingClientRect();
+      dx = e.clientX - r.left; dy = e.clientY - r.top; drag = true;
+      f.setPointerCapture(e.pointerId); f.style.cursor = 'grabbing';
+    });
+    f.addEventListener('pointermove', e => {
+      if (!drag) return;
+      f.style.left = Math.min(innerWidth - f.offsetWidth, Math.max(0, e.clientX - dx)) + 'px';
+      f.style.top = Math.min(innerHeight - f.offsetHeight, Math.max(0, e.clientY - dy)) + 'px';
+      f.style.right = 'auto';
+    });
+    f.addEventListener('pointerup', () => { drag = false; f.style.cursor = 'grab'; });
+  })();
+
+  // pop out into a real always-on-top window (Chrome / Edge 116+)
+  async function popOut() {
+    if (!window.documentPictureInPicture) { alert('Pop-out needs Chrome or Edge (version 116+).'); return; }
+    if (pip) { pip.win.close(); return; }
+    try {
+      const w = await documentPictureInPicture.requestWindow({ width: 260, height: 130 });
+      const cs = getComputedStyle(document.documentElement);
+      const v = n => cs.getPropertyValue(n).trim();
+      w.document.body.style.cssText =
+        'margin:0;height:100vh;display:flex;align-items:center;justify-content:center;gap:14px;' +
+        'background:' + v('--panel') + ';color:' + v('--text') + ';font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif';
+      const mk = (tag, css, txt) => { const e = w.document.createElement(tag); e.style.cssText = css; if (txt) e.textContent = txt; return e; };
+      const box = mk('div', 'text-align:center');
+      const lab = mk('div', 'font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:' + v('--muted'));
+      const time = mk('div', 'font-size:44px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1');
+      box.append(lab, time);
+      const bs = 'width:34px;height:34px;border-radius:50%;border:0;cursor:pointer;font-size:13px;background:' + v('--active') + ';color:' + v('--text');
+      const play = mk('button', bs);
+      const reset = mk('button', bs, '↺');
+      play.onclick = () => toggleKey(activeKey());
+      reset.onclick = () => { resetTimer(activeKey()); paintTimer(); };
+      const col = mk('div', 'display:flex;flex-direction:column;gap:8px');
+      col.append(play, reset);
+      w.document.body.append(box, col);
+      pip = { win: w, time, lab, play };
+      w.addEventListener('pagehide', () => { pip = null; paintFloat(); });
+      paintFloat();
+    } catch (e) {}
+  }
+  $('fpop').onclick = popOut;
+  $('treset').onclick = () => { resetTimer(tab); paintTimer(); };
+
+  function setTab(k) {
+    tab = k;
+    $('tab-down').classList.toggle('on', k === 'down');
+    $('tab-up').classList.toggle('on', k === 'up');
+    $('cdtools').style.display = k === 'down' ? '' : 'none';
+    paintTimer();
+  }
+  $('tab-down').onclick = () => setTab('down');
+  $('tab-up').onclick = () => setTab('up');
+
+  function setTarget(min) {
+    if (!(min > 0)) return;
+    T.down.target = Math.round(min * 60000);
+    resetTimer('down');
+    document.querySelectorAll('#chips button').forEach(b => b.classList.toggle('on', +b.dataset.m === min));
+    paintTimer();
+  }
+  document.querySelectorAll('#chips button').forEach(b => (b.onclick = () => setTarget(+b.dataset.m)));
+  $('cset').onclick = () => { setTarget(Math.min(600, +$('cmin').value)); };
+  $('cmin').addEventListener('keydown', e => { if (e.key === 'Enter') $('cset').click(); });
+
+  $('b-timer').onclick = () => $('timerpanel').classList.toggle('hidden');
+
+  setInterval(() => {
+    if (T.down.running && value('down') <= 0) {
+      T.down.running = false; T.down.base = T.down.target; T.down.done = true;
+      beep();
+    }
+    paintTimer();
+  }, 200);
+  paintTimer();
+
   /* ================= shortcuts ================= */
+  /* ================= custom zoom (works in fullscreen) ================= */
+  let zoom = 1;
+  const toast = document.createElement('div');
+  toast.style.cssText = 'position:fixed;right:16px;bottom:16px;padding:6px 12px;border-radius:8px;' +
+    'background:var(--panel);color:var(--text);border:1px solid var(--border);font-size:13px;' +
+    'opacity:0;transition:opacity .2s;pointer-events:none;z-index:10';
+  document.body.appendChild(toast);
+  let toastTimer;
+  function setZoom(z) {
+    zoom = Math.min(3, Math.max(0.5, z));
+    out.style.zoom = zoom;
+    toast.textContent = Math.round(zoom * 100) + '%';
+    toast.style.opacity = 1;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => (toast.style.opacity = 0), 900);
+  }
+  // trackpad pinch (and Ctrl + mouse wheel) arrive as wheel events with ctrlKey
+  window.addEventListener('wheel', e => {
+    if (!document.fullscreenElement || !e.ctrlKey) return;
+    e.preventDefault();
+    setZoom(zoom * Math.exp(-e.deltaY * 0.01));
+  }, { passive: false });
+  // leaving fullscreen hands zoom back to the browser
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement && zoom !== 1) { zoom = 1; out.style.zoom = ''; }
+  });
+
   window.addEventListener('keydown', e => {
     if (!(e.ctrlKey || e.metaKey)) return;
     const k = e.key.toLowerCase();
-    if (k === 'b') { e.preventDefault(); toggleExplorer(); }
+    if (document.fullscreenElement && (k === '+' || k === '=')) { e.preventDefault(); setZoom(zoom * 1.1); }
+    else if (document.fullscreenElement && (k === '-' || k === '_')) { e.preventDefault(); setZoom(zoom / 1.1); }
+    else if (document.fullscreenElement && k === '0') { e.preventDefault(); setZoom(1); }
+    else if (k === 'b') { e.preventDefault(); toggleExplorer(); }
     else if (k === 'o') { e.preventDefault(); e.shiftKey ? openFolder() : openFile(); }
   });
 </script>
