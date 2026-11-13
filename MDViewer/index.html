@@ -1,10 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MD Viewer</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+<link id="hl-dark" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+<link id="hl-light" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-light.min.css" disabled>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
@@ -13,32 +14,84 @@
   :root {
     --bg: #1f1f1e;
     --panel: #262625;
+    --rail: #181817;
+    --hover: #30302e;
+    --active: #3a3a38;
     --text: #e8e6e1;
     --muted: #9a9892;
     --border: #3a3a38;
     --link: #7ab7ff;
     --code-bg: #282c34;
+    --code-head: #21252b;
     --inline-code: #f0a98a;
+    --inline-code-bg: #333331;
+  }
+  [data-theme="light"] {
+    --bg: #faf9f5;
+    --panel: #f0eee6;
+    --rail: #e6e3d8;
+    --hover: #e6e3d8;
+    --active: #d9d5c7;
+    --text: #1f1f1e;
+    --muted: #6b6a64;
+    --border: #ddd9cc;
+    --link: #1a66cc;
+    --code-bg: #fafafa;
+    --code-head: #f0eee6;
+    --inline-code: #c2410c;
+    --inline-code-bg: #ece9df;
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); }
   body {
+    display: flex; overflow: hidden;
     font: 16px/1.7 -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   }
-  #bar {
-    position: sticky; top: 0; z-index: 5;
-    display: flex; gap: 10px; align-items: center;
-    padding: 10px 16px; background: rgba(31,31,30,.92);
-    backdrop-filter: blur(6px); border-bottom: 1px solid var(--border);
-  }
-  #bar .name { color: var(--muted); font-size: 14px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  button {
-    background: var(--panel); color: var(--text); border: 1px solid var(--border);
-    border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 14px; cursor: pointer;
-  }
-  button:hover { background: #30302e; }
-  button:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
 
+  /* ---------- left rail (icon bar) ---------- */
+  #rail {
+    width: 44px; flex: none; background: var(--rail);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0;
+  }
+  #rail .spacer { flex: 1; }
+  .ib {
+    width: 34px; height: 34px; padding: 0; display: grid; place-items: center;
+    background: transparent; border: 0; border-radius: 8px; color: var(--muted); cursor: pointer;
+  }
+  .ib:hover { background: var(--hover); color: var(--text); }
+  .ib.on { color: var(--text); background: var(--active); }
+  .ib:focus-visible { outline: 2px solid var(--link); outline-offset: 1px; }
+  .ib svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ---------- explorer panel ---------- */
+  #explorer {
+    width: 260px; flex: none; background: var(--panel); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; min-width: 0; position: relative;
+  }
+  #explorer.hidden { display: none; }
+  #exp-title {
+    padding: 10px 12px 6px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  #tree { flex: 1; overflow: auto; padding: 2px 0 12px; font-size: 13.5px; line-height: 1.4; user-select: none; }
+  #tree .empty { padding: 10px 14px; color: var(--muted); }
+  #tree .empty a { color: var(--link); cursor: pointer; }
+  .row {
+    display: flex; align-items: center; gap: 4px; padding: 3px 8px 3px 0; cursor: pointer;
+    white-space: nowrap; overflow: hidden;
+  }
+  .row:hover { background: var(--hover); }
+  .row.active { background: var(--active); }
+  .row .chev { width: 14px; flex: none; text-align: center; color: var(--muted); font-size: 10px; transition: transform .1s; }
+  .row.open > .chev { transform: rotate(90deg); }
+  .row .ico { flex: none; width: 16px; text-align: center; font-size: 13px; }
+  .row .lbl { overflow: hidden; text-overflow: ellipsis; }
+  #resizer { position: absolute; top: 0; right: -3px; width: 6px; height: 100%; cursor: col-resize; z-index: 3; }
+  #resizer:hover, #resizer.drag { background: var(--link); opacity: .4; }
+
+  /* ---------- main ---------- */
+  #main { flex: 1; min-width: 0; overflow-y: auto; position: relative; }
   #drop {
     margin: 12vh auto 0; max-width: 520px; padding: 48px 24px; text-align: center;
     border: 2px dashed var(--border); border-radius: 16px; color: var(--muted);
@@ -57,75 +110,141 @@
   #out a:hover { text-decoration: underline; }
   #out ul, #out ol { padding-left: 1.6em; }
   #out li { margin: .25em 0; }
-  #out blockquote {
-    border-left: 3px solid var(--border); padding: 2px 16px; color: var(--muted);
-  }
+  #out blockquote { border-left: 3px solid var(--border); padding: 2px 16px; color: var(--muted); }
   #out hr { border: 0; border-top: 1px solid var(--border); margin: 2em 0; }
   #out img { max-width: 100%; border-radius: 8px; }
 
-  #out code {
-    font: 0.88em/1.5 ui-monospace, "SF Mono", Consolas, "Cascadia Code", Menlo, monospace;
-  }
-  #out :not(pre) > code {
-    background: #333331; color: var(--inline-code);
-    padding: .15em .4em; border-radius: 6px;
-  }
+  #out code { font: 0.88em/1.5 ui-monospace, "SF Mono", Consolas, "Cascadia Code", Menlo, monospace; }
+  #out :not(pre) > code { background: var(--inline-code-bg); color: var(--inline-code); padding: .15em .4em; border-radius: 6px; }
   .codewrap { position: relative; margin: 0 0 1em; border-radius: 10px; overflow: hidden; background: var(--code-bg); border: 1px solid var(--border); }
   .codewrap .head {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 6px 12px; background: #21252b; color: var(--muted);
+    padding: 6px 12px; background: var(--code-head); color: var(--muted);
     font-size: 12px; border-bottom: 1px solid var(--border);
   }
-  .codewrap .head button { padding: 2px 8px; font-size: 12px; border-radius: 6px; }
+  .codewrap .head button {
+    background: var(--panel); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 2px 8px; font: inherit; font-size: 12px; cursor: pointer;
+  }
   .codewrap pre { margin: 0; overflow-x: auto; }
   .codewrap pre code.hljs { background: transparent; padding: 14px 16px; display: block; }
 
   #out table { border-collapse: collapse; display: block; overflow-x: auto; max-width: 100%; }
   #out th, #out td { border: 1px solid var(--border); padding: 8px 12px; }
   #out th { background: var(--panel); text-align: left; }
-  #out tr:nth-child(even) td { background: rgba(255,255,255,.02); }
+  #out tr:nth-child(even) td { background: rgba(127,127,127,.06); }
   #out input[type=checkbox] { margin-right: 6px; }
 </style>
 </head>
 <body>
-  <div id="bar">
-    <span class="name" id="fname">No file loaded</span>
-    <button id="open">Open .md</button>
-    <input id="file" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden>
-  </div>
+  <nav id="rail">
+    <button class="ib on" id="b-explorer" title="Explorer (Ctrl+B)" aria-label="Toggle explorer">
+      <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+    </button>
+    <button class="ib" id="b-file" title="Open file (Ctrl+O)" aria-label="Open file">
+      <svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>
+    </button>
+    <button class="ib" id="b-folder" title="Open folder (Ctrl+Shift+O)" aria-label="Open folder">
+      <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 11v5M9.5 13.5h5"/></svg>
+    </button>
+    <div class="spacer"></div>
+    <button class="ib" id="b-theme" title="Toggle dark / light" aria-label="Toggle theme"></button>
+    <button class="ib" id="b-full" title="Fullscreen" aria-label="Toggle fullscreen"></button>
+  </nav>
 
-  <div id="drop">
-    <strong>Drop a .md file here</strong>
-    or click "Open .md" up top. You can also paste markdown with Ctrl+V.
-  </div>
+  <aside id="explorer">
+    <div id="exp-title">Explorer</div>
+    <div id="tree"></div>
+    <div id="resizer"></div>
+  </aside>
 
-  <article id="out"></article>
+  <main id="main">
+    <div id="drop">
+      <strong>Drop a .md file or a folder here</strong>
+      or use the buttons on the left. You can also paste markdown with Ctrl+V.
+    </div>
+    <article id="out"></article>
+  </main>
+
+  <input id="file" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden>
+  <input id="dirfallback" type="file" webkitdirectory hidden>
 
 <script>
-  const out = document.getElementById('out');
-  const drop = document.getElementById('drop');
-  const fname = document.getElementById('fname');
-  const fileInput = document.getElementById('file');
+  const $ = id => document.getElementById(id);
+  const out = $('out'), drop = $('drop'), main = $('main'), tree = $('tree');
+  const fileInput = $('file'), dirFallback = $('dirfallback');
+  const explorer = $('explorer');
 
   marked.setOptions({ gfm: true, breaks: false });
 
-  // Pull math out before marked (so _ * \\ don't get mangled), skip code
+  /* ================= theme ================= */
+  const ICON_SUN = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+  const ICON_MOON = '<svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
+  const ICON_FS_IN = '<svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
+  const ICON_FS_OUT = '<svg viewBox="0 0 24 24"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>';
+
+  function applyTheme(t) {
+    document.documentElement.dataset.theme = t;
+    $('hl-dark').disabled = t !== 'dark';
+    $('hl-light').disabled = t !== 'light';
+    $('b-theme').innerHTML = t === 'dark' ? ICON_SUN : ICON_MOON;
+    $('b-theme').title = t === 'dark' ? 'Switch to light theme' : 'Switch to dark theme';
+    try { localStorage.setItem('mdv-theme', t); } catch (e) {}
+  }
+  let savedTheme = 'dark';
+  try { savedTheme = localStorage.getItem('mdv-theme') || 'dark'; } catch (e) {}
+  applyTheme(savedTheme);
+  $('b-theme').onclick = () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+
+  /* ================= fullscreen ================= */
+  function syncFs() {
+    const on = !!document.fullscreenElement;
+    $('b-full').innerHTML = on ? ICON_FS_OUT : ICON_FS_IN;
+    $('b-full').title = on ? 'Exit fullscreen' : 'Fullscreen';
+  }
+  $('b-full').onclick = () => {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen().catch(() => {});
+  };
+  document.addEventListener('fullscreenchange', syncFs);
+  syncFs();
+
+  /* ================= explorer toggle + resize ================= */
+  function toggleExplorer(force) {
+    const hide = force === undefined ? !explorer.classList.contains('hidden') : !force;
+    explorer.classList.toggle('hidden', hide);
+    $('b-explorer').classList.toggle('on', !hide);
+  }
+  $('b-explorer').onclick = () => toggleExplorer();
+
+  (() => {
+    const rz = $('resizer');
+    let startX, startW;
+    rz.addEventListener('pointerdown', e => {
+      startX = e.clientX; startW = explorer.offsetWidth;
+      rz.setPointerCapture(e.pointerId); rz.classList.add('drag');
+    });
+    rz.addEventListener('pointermove', e => {
+      if (!rz.classList.contains('drag')) return;
+      explorer.style.width = Math.min(600, Math.max(160, startW + e.clientX - startX)) + 'px';
+    });
+    rz.addEventListener('pointerup', () => rz.classList.remove('drag'));
+  })();
+
+  /* ================= markdown rendering ================= */
   const MATH_RE = new RegExp(
-    '(```[\\s\\S]*?```|~~~[\\s\\S]*?~~~|`[^`\\n]*`)' +                 // 1 code (skip)
-    '|\\$\\$([\\s\\S]+?)\\$\\$' +                                       // 2 $$ display
-    '|\\\\\\[([\\s\\S]+?)\\\\\\]' +                                     // 3 \[ display
-    '|(\\\\begin\\{(align\\*?|aligned|equation\\*?|gather\\*?|cases|array|[pbvBV]?matrix)\\}[\\s\\S]+?\\\\end\\{\\5\\})' + // 4 bare env
-    '|\\\\\\(([\\s\\S]+?)\\\\\\)' +                                     // 6 \( inline
-    '|\\$(?!\\s)((?:\\\\.|[^$\\\\\\n])+?)(?<!\\s)\\$(?!\\d)',           // 7 $ inline
+    '(```[\\s\\S]*?```|~~~[\\s\\S]*?~~~|`[^`\\n]*`)' +
+    '|\\$\\$([\\s\\S]+?)\\$\\$' +
+    '|\\\\\\[([\\s\\S]+?)\\\\\\]' +
+    '|(\\\\begin\\{(align\\*?|aligned|equation\\*?|gather\\*?|cases|array|[pbvBV]?matrix)\\}[\\s\\S]+?\\\\end\\{\\5\\})' +
+    '|\\\\\\(([\\s\\S]+?)\\\\\\)' +
+    '|\\$(?!\\s)((?:\\\\.|[^$\\\\\\n])+?)(?<!\\s)\\$(?!\\d)',
     'g'
   );
 
   function extractMath(text) {
     const store = [];
-    const stash = (tex, display) => {
-      store.push({ tex, display });
-      return 'MATHPH' + (store.length - 1) + 'X';
-    };
+    const stash = (tex, display) => { store.push({ tex, display }); return 'MATHPH' + (store.length - 1) + 'X'; };
     const replaced = text.replace(MATH_RE, (m, code, dd, br, env, _e, par, inl) => {
       if (code) return m;
       if (dd !== undefined) return stash(dd, true);
@@ -143,9 +262,7 @@
       const item = store[+i];
       if (!item) return m;
       try {
-        return katex.renderToString(item.tex.trim(), {
-          displayMode: item.display, throwOnError: false, strict: 'ignore'
-        });
+        return katex.renderToString(item.tex.trim(), { displayMode: item.display, throwOnError: false, strict: 'ignore' });
       } catch (e) {
         return '<code>' + item.tex.replace(/</g, '&lt;') + '</code>';
       }
@@ -154,19 +271,14 @@
 
   function render(text, name) {
     const { replaced, store } = extractMath(text);
-    const html = restoreMath(marked.parse(replaced), store);
-    out.innerHTML = html;
+    out.innerHTML = restoreMath(marked.parse(replaced), store);
 
-    // wrap code blocks with header + copy button, then highlight
     out.querySelectorAll('pre > code').forEach(code => {
       const pre = code.parentElement;
       const langClass = [...code.classList].find(c => c.startsWith('language-'));
       const lang = langClass ? langClass.replace('language-', '') : 'text';
-      if (hljs.getLanguage(lang)) {
-        hljs.highlightElement(code);
-      } else {
-        code.classList.add('hljs');
-      }
+      if (hljs.getLanguage(lang)) hljs.highlightElement(code);
+      else code.classList.add('hljs');
       const wrap = document.createElement('div');
       wrap.className = 'codewrap';
       const head = document.createElement('div');
@@ -176,12 +288,8 @@
       const btn = document.createElement('button');
       btn.textContent = 'Copy';
       btn.addEventListener('click', async () => {
-        try {
-          await navigator.clipboard.writeText(code.innerText);
-          btn.textContent = 'Copied';
-        } catch (e) {
-          btn.textContent = 'Failed';
-        }
+        try { await navigator.clipboard.writeText(code.innerText); btn.textContent = 'Copied'; }
+        catch (e) { btn.textContent = 'Failed'; }
         setTimeout(() => (btn.textContent = 'Copy'), 1500);
       });
       head.append(label, btn);
@@ -189,38 +297,178 @@
       wrap.append(head, pre);
     });
 
-    // open links in new tab
-    out.querySelectorAll('a[href^="http"]').forEach(a => {
-      a.target = '_blank'; a.rel = 'noopener noreferrer';
-    });
+    out.querySelectorAll('a[href^="http"]').forEach(a => { a.target = '_blank'; a.rel = 'noopener noreferrer'; });
 
     drop.style.display = 'none';
     out.style.display = 'block';
-    fname.textContent = name || 'Pasted markdown';
-    document.title = name || 'MD Viewer';
-    window.scrollTo(0, 0);
+    main.scrollTo(0, 0);
   }
 
-  function loadFile(file) {
-    if (!file) return;
-    const r = new FileReader();
-    r.onload = () => render(r.result, file.name);
-    r.readAsText(file);
+  /* ================= file tree ================= */
+  const isMd = n => /\.(md|markdown|mdown|mkd)$/i.test(n);
+  const SKIP_DIRS = new Set(['node_modules', '.git', '.svn', '.hg', '__pycache__', '.venv', 'venv', 'dist', 'build']);
+  const natural = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+  let activeRow = null;
+
+  async function showFile(getFile, name, row) {
+    try {
+      const f = await getFile();
+      const text = await f.text();
+      render(text, name);
+      if (activeRow) activeRow.classList.remove('active');
+      if (row) { row.classList.add('active'); activeRow = row; } else activeRow = null;
+    } catch (e) {
+      alert('Could not read ' + name);
+    }
   }
 
-  document.getElementById('open').onclick = () => fileInput.click();
-  drop.onclick = () => fileInput.click();
-  fileInput.onchange = e => loadFile(e.target.files[0]);
+  // node: {type:'dir'|'file', name, children?, getFile?}
+  function sortNodes(list) {
+    list.sort((a, b) => (a.type !== b.type ? (a.type === 'dir' ? -1 : 1) : natural.compare(a.name, b.name)));
+    list.forEach(n => n.children && sortNodes(n.children));
+  }
 
+  // File System Access API scan; prunes folders without md files
+  async function scanHandle(dirHandle) {
+    const children = [];
+    for await (const [name, h] of dirHandle.entries()) {
+      if (h.kind === 'directory') {
+        if (name.startsWith('.') || SKIP_DIRS.has(name)) continue;
+        const sub = await scanHandle(h);
+        if (sub.children.length) children.push(sub);
+      } else if (isMd(name)) {
+        children.push({ type: 'file', name, getFile: () => h.getFile() });
+      }
+    }
+    return { type: 'dir', name: dirHandle.name, children };
+  }
+
+  // Fallback (webkitdirectory): build tree from relative paths
+  function buildFromFiles(fileList) {
+    const files = [...fileList].filter(f => isMd(f.name));
+    const rootName = files.length ? files[0].webkitRelativePath.split('/')[0] : 'Folder';
+    const root = { type: 'dir', name: rootName, children: [] };
+    for (const f of files) {
+      const parts = f.webkitRelativePath.split('/').slice(1);
+      if (parts.some((p, i) => i < parts.length - 1 && (p.startsWith('.') || SKIP_DIRS.has(p)))) continue;
+      let cur = root;
+      parts.forEach((p, i) => {
+        if (i === parts.length - 1) cur.children.push({ type: 'file', name: p, getFile: async () => f });
+        else {
+          let d = cur.children.find(c => c.type === 'dir' && c.name === p);
+          if (!d) { d = { type: 'dir', name: p, children: [] }; cur.children.push(d); }
+          cur = d;
+        }
+      });
+    }
+    return root;
+  }
+
+  function renderNode(node, depth, parent, expandedByDefault) {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.style.paddingLeft = (6 + depth * 12) + 'px';
+    const chev = document.createElement('span'); chev.className = 'chev';
+    const ico = document.createElement('span'); ico.className = 'ico';
+    const lbl = document.createElement('span'); lbl.className = 'lbl'; lbl.textContent = node.name;
+    row.title = node.name;
+    row.append(chev, ico, lbl);
+    parent.appendChild(row);
+
+    if (node.type === 'dir') {
+      chev.textContent = '▶';
+      ico.textContent = '📁';
+      const box = document.createElement('div');
+      parent.appendChild(box);
+      node.children.forEach(c => renderNode(c, depth + 1, box, false));
+      const setOpen = o => { row.classList.toggle('open', o); box.style.display = o ? '' : 'none'; ico.textContent = o ? '📂' : '📁'; };
+      setOpen(expandedByDefault);
+      row.onclick = () => setOpen(!row.classList.contains('open'));
+    } else {
+      ico.textContent = '📝';
+      row.style.paddingLeft = (6 + depth * 12 + 0) + 'px';
+      row.onclick = () => showFile(node.getFile, node.name, row);
+    }
+    return row;
+  }
+
+  function showTree(root) {
+    tree.innerHTML = '';
+    $('exp-title').textContent = root.name;
+    if (!root.children.length) {
+      tree.innerHTML = '<div class="empty">No Markdown files found in this folder.</div>';
+    } else {
+      sortNodes(root.children);
+      root.children.forEach(c => renderNode(c, 0, tree, false));
+    }
+    toggleExplorer(true);
+  }
+
+  function emptyTree() {
+    tree.innerHTML = '<div class="empty">No folder opened.<br><br><a id="e-open">Open folder</a></div>';
+    $('e-open').onclick = openFolder;
+  }
+  emptyTree();
+
+  /* ================= opening things ================= */
+  async function openFolder() {
+    if (window.showDirectoryPicker) {
+      try {
+        const h = await window.showDirectoryPicker({ mode: 'read' });
+        tree.innerHTML = '<div class="empty">Scanning…</div>';
+        showTree(await scanHandle(h));
+      } catch (e) { if (e.name !== 'AbortError') dirFallback.click(); else emptyTreeIfNone(); }
+    } else {
+      dirFallback.click();
+    }
+  }
+  function emptyTreeIfNone() { if (!tree.querySelector('.row') && !tree.querySelector('.empty')) emptyTree(); else if (tree.textContent === 'Scanning…') emptyTree(); }
+
+  async function openFile() {
+    if (window.showOpenFilePicker) {
+      try {
+        const [h] = await window.showOpenFilePicker({
+          types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md', '.markdown', '.mdown', '.mkd'], 'text/plain': ['.txt'] } }]
+        });
+        showFile(() => h.getFile(), h.name, null);
+      } catch (e) { if (e.name !== 'AbortError') fileInput.click(); }
+    } else fileInput.click();
+  }
+
+  $('b-folder').onclick = openFolder;
+  $('b-file').onclick = openFile;
+  fileInput.onchange = e => { const f = e.target.files[0]; if (f) showFile(async () => f, f.name, null); fileInput.value = ''; };
+  dirFallback.onchange = e => { if (e.target.files.length) showTree(buildFromFiles(e.target.files)); dirFallback.value = ''; };
+  drop.onclick = openFile;
+
+  /* ================= drag & drop (files or folders) ================= */
   ['dragenter', 'dragover'].forEach(ev =>
     window.addEventListener(ev, e => { e.preventDefault(); document.body.classList.add('dragging'); }));
-  ['dragleave', 'drop'].forEach(ev =>
-    window.addEventListener(ev, e => { e.preventDefault(); document.body.classList.remove('dragging'); }));
-  window.addEventListener('drop', e => loadFile(e.dataTransfer.files[0]));
+  window.addEventListener('dragleave', e => { if (!e.relatedTarget) document.body.classList.remove('dragging'); });
+  window.addEventListener('drop', async e => {
+    e.preventDefault();
+    document.body.classList.remove('dragging');
+    const item = e.dataTransfer.items && e.dataTransfer.items[0];
+    if (item && item.getAsFileSystemHandle) {
+      const h = await item.getAsFileSystemHandle();
+      if (h && h.kind === 'directory') { showTree(await scanHandle(h)); return; }
+      if (h && h.kind === 'file') { showFile(() => h.getFile(), h.name, null); return; }
+    }
+    const f = e.dataTransfer.files[0];
+    if (f) showFile(async () => f, f.name, null);
+  });
 
   window.addEventListener('paste', e => {
     const t = e.clipboardData.getData('text');
     if (t) render(t, 'Pasted markdown');
+  });
+
+  /* ================= shortcuts ================= */
+  window.addEventListener('keydown', e => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    const k = e.key.toLowerCase();
+    if (k === 'b') { e.preventDefault(); toggleExplorer(); }
+    else if (k === 'o') { e.preventDefault(); e.shiftKey ? openFolder() : openFile(); }
   });
 </script>
 </body>
