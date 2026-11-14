@@ -74,6 +74,9 @@
     padding: 10px 12px 6px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
+  #exp-head { display: flex; align-items: center; padding-right: 6px; }
+  #exp-head #exp-title { flex: 1; min-width: 0; }
+  #b-refresh { width: 26px; height: 26px; font-size: 15px; }
   #tree { flex: 1; overflow: auto; padding: 2px 0 12px; font-size: 13.5px; line-height: 1.4; user-select: none; }
   #tree .empty { padding: 10px 14px; color: var(--muted); }
   #tree .empty a { color: var(--link); cursor: pointer; }
@@ -208,7 +211,7 @@
   </nav>
 
   <aside id="explorer">
-    <div id="exp-title">Explorer</div>
+    <div id="exp-head"><span id="exp-title">Explorer</span><button class="ib" id="b-refresh" title="Refresh folder" aria-label="Refresh folder">↻</button></div>
     <div id="tree"></div>
     <div id="resizer"></div>
   </aside>
@@ -418,7 +421,7 @@
       const text = await f.text();
       render(text, name);
       if (activeRow) activeRow.classList.remove('active');
-      if (row) { row.classList.add('active'); activeRow = row; } else activeRow = null;
+      if (row) { row.classList.add('active'); activeRow = row; } else { activeRow = null; activePath = null; }
     } catch (e) {
       alert('Could not read ' + name);
     }
@@ -466,7 +469,12 @@
     return root;
   }
 
-  function renderNode(node, depth, parent, expandedByDefault) {
+  const openSet = new Set();           // expanded folder paths (survive refresh)
+  let activePath = null, rootHandle = null, lastSig = '', refreshing = false;
+  const sig = n => (n.type === 'file' ? 'f:' + n.name : 'd:' + n.name + '[' + n.children.map(sig).join(',') + ']');
+
+  function renderNode(node, depth, parent, parentPath) {
+    const path = parentPath + '/' + node.name;
     const row = document.createElement('div');
     row.className = 'row';
     row.style.paddingLeft = (6 + depth * 12) + 'px';
@@ -479,32 +487,59 @@
 
     if (node.type === 'dir') {
       chev.textContent = '▶';
-      ico.textContent = '📁';
       const box = document.createElement('div');
       parent.appendChild(box);
-      node.children.forEach(c => renderNode(c, depth + 1, box, false));
+      node.children.forEach(c => renderNode(c, depth + 1, box, path));
       const setOpen = o => { row.classList.toggle('open', o); box.style.display = o ? '' : 'none'; ico.textContent = o ? '📂' : '📁'; };
-      setOpen(expandedByDefault);
-      row.onclick = () => setOpen(!row.classList.contains('open'));
+      setOpen(openSet.has(path));
+      row.onclick = () => {
+        const o = !row.classList.contains('open');
+        setOpen(o);
+        if (o) openSet.add(path); else openSet.delete(path);
+      };
     } else {
       ico.textContent = '📝';
-      row.style.paddingLeft = (6 + depth * 12 + 0) + 'px';
-      row.onclick = () => showFile(node.getFile, node.name, row);
+      if (path === activePath) { row.classList.add('active'); activeRow = row; }
+      row.onclick = () => { activePath = path; showFile(node.getFile, node.name, row); };
     }
     return row;
   }
 
-  function showTree(root) {
+  function paintTree(root) {
+    sortNodes(root.children);
+    lastSig = sig(root);
+    activeRow = null;
     tree.innerHTML = '';
     $('exp-title').textContent = root.name;
-    if (!root.children.length) {
-      tree.innerHTML = '<div class="empty">No Markdown files found in this folder.</div>';
-    } else {
-      sortNodes(root.children);
-      root.children.forEach(c => renderNode(c, 0, tree, false));
-    }
+    if (!root.children.length) tree.innerHTML = '<div class="empty">No Markdown files found in this folder.</div>';
+    else root.children.forEach(c => renderNode(c, 0, tree, root.name));
+  }
+
+  function showTree(root) {
+    openSet.clear(); activePath = null;
+    paintTree(root);
     toggleExplorer(true);
   }
+
+  // re-scan the opened folder; only redraw when something actually changed
+  async function refreshTree(force) {
+    if (!rootHandle || refreshing) return;
+    refreshing = true;
+    try {
+      const root = await scanHandle(rootHandle);
+      sortNodes(root.children);
+      if (force || sig(root) !== lastSig) {
+        const st = tree.scrollTop;
+        paintTree(root);
+        tree.scrollTop = st;
+      }
+    } catch (e) { /* folder moved or permission lost: keep the old tree */ }
+    finally { refreshing = false; }
+  }
+  $('b-refresh').onclick = () => refreshTree(true);
+  window.addEventListener('focus', () => refreshTree());
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshTree(); });
+  setInterval(() => { if (!document.hidden) refreshTree(); }, 3000);
 
   function emptyTree() {
     tree.innerHTML = '<div class="empty">No folder opened.<br><br><a id="e-open">Open folder</a></div>';
@@ -518,7 +553,7 @@
       try {
         const h = await window.showDirectoryPicker({ mode: 'read' });
         tree.innerHTML = '<div class="empty">Scanning…</div>';
-        showTree(await scanHandle(h));
+        rootHandle = h; showTree(await scanHandle(h));
       } catch (e) { if (e.name !== 'AbortError') dirFallback.click(); else emptyTreeIfNone(); }
     } else {
       dirFallback.click();
@@ -540,7 +575,7 @@
   $('b-folder').onclick = openFolder;
   $('b-file').onclick = openFile;
   fileInput.onchange = e => { const f = e.target.files[0]; if (f) showFile(async () => f, f.name, null); fileInput.value = ''; };
-  dirFallback.onchange = e => { if (e.target.files.length) showTree(buildFromFiles(e.target.files)); dirFallback.value = ''; };
+  dirFallback.onchange = e => { if (e.target.files.length) { rootHandle = null; showTree(buildFromFiles(e.target.files)); } dirFallback.value = ''; };
   drop.onclick = openFile;
 
   /* ================= drag & drop (files or folders) ================= */
@@ -553,7 +588,7 @@
     const item = e.dataTransfer.items && e.dataTransfer.items[0];
     if (item && item.getAsFileSystemHandle) {
       const h = await item.getAsFileSystemHandle();
-      if (h && h.kind === 'directory') { showTree(await scanHandle(h)); return; }
+      if (h && h.kind === 'directory') { rootHandle = h; showTree(await scanHandle(h)); return; }
       if (h && h.kind === 'file') { showFile(() => h.getFile(), h.name, null); return; }
     }
     const f = e.dataTransfer.files[0];
